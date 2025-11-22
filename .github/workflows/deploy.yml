@@ -12,14 +12,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 2. Setup Deno
       - name: Setup Deno
         uses: denoland/setup-deno@v1
         with:
           deno-version: v2.x
 
+      # 3. Cache Deno modules
       - name: Cache Deno modules
         uses: actions/cache@v3
         with:
@@ -27,13 +30,15 @@ jobs:
             ~/.cache/deno
           key: ${{ runner.os }}-deno-${{ hashFiles('**/deno.json','**/deno.lock') }}
 
+      # 4. Run CI tasks: fmt, lint, typecheck, build
       - name: Run CI (fmt, lint, typecheck, build)
         run: deno task ci
 
+      # 5. Upload built files for GitHub Pages
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist # Make sure your build outputs files here
 
   deploy:
     needs: build
@@ -43,5 +48,6 @@ jobs:
       id-token: write
 
     steps:
+      # Deploy artifact to GitHub Pages
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
