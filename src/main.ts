@@ -1,8 +1,5 @@
 // main.ts
-// Prefer the local installed package instead of a remote CDN import so
-// builds and type-checking don't require fetching esm.sh at check time.
-// @deno-types="./types/three.d.ts"
-import * as THREE from "three";
+import * as THREE from "https://esm.sh/three@0.164.0";
 import "./style.css";
 
 const canvas = document.createElement("canvas");
