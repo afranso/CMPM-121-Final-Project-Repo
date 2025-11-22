@@ -30,7 +30,6 @@ We will use CSS for styling and clarity on our projections and UI/UX.
 
 ### Engine (Libraries) : Three.js, Ammo.js
 
-
 Since we chose to use TypeScript these libraries are our only way of accessing 3D graphics. Though we have not used it before, this is probably the best way to access 3D graphics in this format. We will also have our tools lead and our agentic tools if we ever need help using them. Copilot will be a big help when using these libraries as it already has access to our files and we can ask it the best ways to utilize the libraries in our circumstances.
 
 ### Generative AI: Brace, ChatGPT, Copilot
@@ -39,11 +38,10 @@ We are using Copilot because it is already built-in to Codespaces. This will hel
 
 ## Outlook
 
-*What do you anticipate being the hardest or riskiest part of the project?*
+_What do you anticipate being the hardest or riskiest part of the project?_
 
 Choosing a tool that may not work for our purposes down the line & switching tools (redoing a lot of work) is likely the riskiest part of this project. Liveshare may also hinder progress due to it being buggy and messing with the spelling of members code.
 
-*What are you hoping to learn by approaching the project with the tools and materials you selected above?*
+_What are you hoping to learn by approaching the project with the tools and materials you selected above?_
 
-We hope to improve our collaborative skills and make use of new collaborative tools. Become more familiar with TypeScript and using libraries available as well as maintaining good GitHub techniques. Being able to plan out a large project from the ground up in a timely manner with the least amount of issues as possible. Essentially, we hope to practice the skills we have learned so far while strengthening them to develop a game that is presentable. 
-
+We hope to improve our collaborative skills and make use of new collaborative tools. Become more familiar with TypeScript and using libraries available as well as maintaining good GitHub techniques. Being able to plan out a large project from the ground up in a timely manner with the least amount of issues as possible. Essentially, we hope to practice the skills we have learned so far while strengthening them to develop a game that is presentable.
