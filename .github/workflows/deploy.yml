@@ -59,12 +59,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-<<<<<<< HEAD
-=======
     env:
       REPO_NAME: "/${{ github.event.repository.name }}/"
 
->>>>>>> a2c6926 (ci: fix ammo import, add declaration, update GitHub Pages workflow)
     permissions:
       contents: read
 
