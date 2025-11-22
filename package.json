@@ -1,0 +1,20 @@
+{
+  "name": "cmpm-121-final-project-repo",
+  "version": "1.0.0",
+  "description": "Collaborative repo for cmpm-121 final project.",
+  "main": "vite.config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ammo.js": "^0.0.10",
+    "three": "^0.181.2"
+  },
+  "devDependencies": {
+    "@types/three": "^0.181.0",
+    "typescript": "^5.9.3"
+  }
+}
