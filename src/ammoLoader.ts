@@ -1,11 +1,10 @@
-// Tell Deno where to find the TypeScript declaration for this npm package
-// so `deno check` can resolve module types.
-import AmmoFactory from "https://cdn.jsdelivr.net/gh/kripken/ammo.js@master/builds/ammo.wasm.js";
+// Load the `ammo.js` package dynamically so Deno doesn't attempt to resolve
+// static types from the npm package during `deno check`.
 
 type AmmoInitializer = (...args: unknown[]) => Promise<unknown> | unknown;
 
 async function initAmmo(): Promise<unknown> {
-  const mod = AmmoFactory as unknown;
+  const mod = (await import("ammo.js")) as unknown;
 
   // If the package export is a factory function, call it to initialize (WASM)
   if (typeof mod === "function") {
