@@ -233,8 +233,12 @@
       "bin": true
     }
   },
+  "redirects": {
+    "https://esm.sh/@types/three@~0.164.1/index.d.ts": "https://esm.sh/@types/three@0.164.1/index.d.ts"
+  },
   "remote": {
-    "https://cdn.jsdelivr.net/gh/kripken/ammo.js@master/builds/ammo.wasm.js": "9b765569bce6993e781cd95d548c3711b119f355b512b25722e86a27d6ea8857"
+    "https://cdn.jsdelivr.net/gh/kripken/ammo.js@master/builds/ammo.wasm.js": "9b765569bce6993e781cd95d548c3711b119f355b512b25722e86a27d6ea8857",
+    "https://esm.sh/three@0.164.0": "5918f37af049c91d3df907d760f3276727f8ea119f56a43679519a77fc1a4f92"
   },
   "workspace": {
     "dependencies": [

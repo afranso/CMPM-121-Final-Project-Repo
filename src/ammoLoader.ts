@@ -1,6 +1,5 @@
 // Load the `ammo.js` package dynamically so Deno doesn't attempt to resolve
 // static types from the npm package during `deno check`.
-
 type AmmoInitializer = (...args: unknown[]) => Promise<unknown> | unknown;
 
 async function initAmmo(): Promise<unknown> {

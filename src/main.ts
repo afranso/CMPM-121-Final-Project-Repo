@@ -1,5 +1,5 @@
 // main.ts
-import * as THREE from "three";
+import * as THREE from "https://esm.sh/three@0.164.0";
 import "./style.css";
 
 const canvas = document.createElement("canvas");
