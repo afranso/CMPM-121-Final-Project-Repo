@@ -1,13 +1,6 @@
 // https://vitejs.dev/config/
-export default {
-  base: Deno.env.get("REPO_NAME") || "/project",
-  server: {
-    port: 3000,
-    open: true,
-  },
-  build: {
-    target: "esnext",
-    outDir: "dist",
-    sourcemap: true,
-  },
-};
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  base: "/CMPM-121-Final-Project-Repo/",
+});

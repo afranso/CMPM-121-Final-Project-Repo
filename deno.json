@@ -9,9 +9,7 @@
   },
   "lint": {
     "rules": {
-      "tags": [
-        "recommended"
-      ]
+      "tags": ["recommended"]
     }
   },
   "fmt": {
@@ -23,21 +21,20 @@
     "proseWrap": "preserve"
   },
   "tasks": {
-    "dev": "deno run -A npm:vite@4.4.5",
-    "build": "deno run -A npm:vite@4.4.5 build",
-    "preview": "deno run -A npm:vite@4.4.5 preview",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "preview": "npm run preview",
     "check": "deno check src/**/*.ts",
     "lint": "deno lint",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
-    "ci": "deno fmt --check && deno lint && deno check src/**/*.ts && deno task build"
+    "ci": "deno fmt --check && deno lint && deno check src/**/*.ts && npm run build"
   },
   "exclude": [
     "node_modules",
     "dist",
-    ".git"
+    ".git",
+    "vite.config.js"
   ],
-  "imports": {
-    "vite": "npm:vite@4.4.5"
-  }
+  "nodeModulesDir": "auto"
 }
