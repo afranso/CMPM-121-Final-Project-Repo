@@ -20,14 +20,18 @@ jobs:
         with:
           deno-version: v1.x
 
-      - name: Install npm dependencies
-        run: deno install
+      - name: Cache Deno modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/deno
+          key: ${{ runner.os }}-deno-${{ hashFiles('**/*.ts') }}
 
       - name: Run CI (fmt, lint, typecheck, build)
         run: deno task ci
 
       - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3 # <-- update here
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
