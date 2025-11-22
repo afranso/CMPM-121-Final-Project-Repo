@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      REPO_NAME: "/${{ github.event.repository.name }}/"
 
     permissions:
       contents: read
