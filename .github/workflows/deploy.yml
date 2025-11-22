@@ -22,7 +22,7 @@ jobs:
           deno-version: v1.x
 
       - name: Install npm dependencies
-        run: deno install
+        run: npm install
 
       - name: Run CI (fmt, lint, typecheck, build)
         run: deno task ci
