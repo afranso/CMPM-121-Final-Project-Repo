@@ -233,6 +233,9 @@
       "bin": true
     }
   },
+  "remote": {
+    "https://cdn.jsdelivr.net/gh/kripken/ammo.js@master/builds/ammo.wasm.js": "9b765569bce6993e781cd95d548c3711b119f355b512b25722e86a27d6ea8857"
+  },
   "workspace": {
     "dependencies": [
       "npm:vite@4.4.5"
