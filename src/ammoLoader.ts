@@ -1,3 +1,6 @@
+// Tell Deno where to find the TypeScript declaration for this npm package
+// so `deno check` can resolve module types.
+// @deno-types="./types/ammo.d.ts"
 import AmmoFactory from "ammo.js";
 
 type AmmoInitializer = (...args: unknown[]) => Promise<unknown> | unknown;
