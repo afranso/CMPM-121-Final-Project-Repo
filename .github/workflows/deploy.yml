@@ -10,13 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      REPO_NAME: "/${{ github.event.repository.name }}/"
-    permissions:
-      contents: read
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Deno
@@ -29,58 +25,7 @@ jobs:
         with:
           path: |
             ~/.cache/deno
-          key: ${{ runner.os }}-deno-${{ hashFiles('**/*.ts') }}
-
-      - name: Run CI (fmt, lint, typecheck, build)
-        run: deno task ci
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-
-    steps:
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
-name: Deploy
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      REPO_NAME: "/${{ github.event.repository.name }}/"
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v2.x
-
-      - name: Cache Deno modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/deno
-          key: ${{ runner.os }}-deno-${{ hashFiles('**/*.ts') }}
+          key: ${{ runner.os }}-deno-${{ hashFiles('**/deno.json','**/deno.lock') }}
 
       - name: Run CI (fmt, lint, typecheck, build)
         run: deno task ci
