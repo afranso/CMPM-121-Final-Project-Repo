@@ -1,5 +1,3 @@
-/// <reference types="./types/ammo-js.d.ts" />
-
 import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 
@@ -8,6 +6,7 @@ export class LevelOne extends GameScene {
   private doorMesh!: THREE.Mesh;
   private button!: THREE.Mesh;
   private marker!: THREE.Mesh;
+  private floor!: THREE.Mesh;
   private blocks: Array<{
     mesh: THREE.Mesh;
     velY: number;
@@ -40,10 +39,16 @@ export class LevelOne extends GameScene {
     this.camera.position.set(0, 4, 8);
     this.camera.lookAt(0, 1, 0);
 
+    // Scene background
+    this.scene.background = new THREE.Color(0x222222);
+
     // Enhanced lighting
     const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     hemi.position.set(0, 20, 0);
     this.scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(5, 10, 2);
+    this.scene.add(dir);
 
     // Room setup
     this.createRoom();
@@ -57,7 +62,16 @@ export class LevelOne extends GameScene {
     this.scene.add(room);
 
     // Floor - using physics
-    this.createCube(20, 0, new THREE.Vector3(0, -0.25, 0), 0x808080);
+    // Create a large flat floor (20x20 horizontal, 1 unit thick)
+    // Position it so the top surface is at y=0
+    this.floor = this.createBox(
+      20,
+      1,
+      20,
+      0,
+      new THREE.Vector3(0, -0.5, 0),
+      0x808080,
+    );
 
     // Walls (static visual only, no physics needed for now)
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
@@ -106,12 +120,15 @@ export class LevelOne extends GameScene {
   }
 
   private createButton() {
-    this.button = new THREE.Mesh(
-      new THREE.BoxGeometry(this.BUTTON_SIZE, 0.2, this.BUTTON_SIZE),
-      new THREE.MeshStandardMaterial({ color: 0xff4444 }),
+    // Create button with physics (static object, mass = 0)
+    this.button = this.createBox(
+      this.BUTTON_SIZE,
+      0.2,
+      this.BUTTON_SIZE,
+      0,
+      new THREE.Vector3(0, 0.1, -6),
+      0xff4444,
     );
-    this.button.position.set(0, 0.1, -6);
-    this.scene.add(this.button);
 
     // Button outline
     const buttonOutline = new THREE.LineSegments(
@@ -133,7 +150,7 @@ export class LevelOne extends GameScene {
       new THREE.SphereGeometry(0.08, 8, 8),
       new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0x444400 }),
     );
-    this.marker.position.y = this.BLOCK_SIZE / 2;
+    this.marker.position.y = 0.05; // Slightly above ground for visibility
     this.marker.visible = true;
     this.scene.add(this.marker);
   }
@@ -191,20 +208,26 @@ export class LevelOne extends GameScene {
     this.pointer.y = -(clientY / globalThis.innerHeight) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
-    const plane = new THREE.Plane(
-      new THREE.Vector3(0, 1, 0),
-      -this.BLOCK_SIZE / 2,
-    );
-    const pos = new THREE.Vector3();
-    const intersect = this.raycaster.ray.intersectPlane(plane, pos);
+    // Raycast against floor and button
+    const intersects = this.raycaster.intersectObjects([
+      this.floor,
+      this.button,
+    ]);
 
-    if (intersect) {
-      this.marker.position.set(pos.x, this.BLOCK_SIZE / 2, pos.z);
+    if (intersects.length > 0) {
+      // Position marker at the intersection point
+      this.marker.position.copy(intersects[0].point);
+      // Lift marker slightly above surface for visibility
+      this.marker.position.y += 0.05;
     } else {
-      const fallback = this.raycaster.ray.origin.clone().add(
-        this.raycaster.ray.direction.clone().multiplyScalar(6),
-      );
-      this.marker.position.set(fallback.x, this.BLOCK_SIZE / 2, fallback.z);
+      // Fallback to plane intersection if no objects hit
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const pos = new THREE.Vector3();
+      const intersect = this.raycaster.ray.intersectPlane(plane, pos);
+      if (intersect) {
+        this.marker.position.copy(pos);
+        this.marker.position.y = 0.05;
+      }
     }
   }
 
@@ -212,18 +235,18 @@ export class LevelOne extends GameScene {
     this.updateMarkerFromPointer(clientX, clientY);
 
     const spawnPos = this.marker.position.clone();
-    spawnPos.y += this.DROP_HEIGHT;
+    // Spawn at marker position (ground level) + block center height + drop height
+    spawnPos.y = this.BLOCK_SIZE / 2 + this.DROP_HEIGHT;
 
     // Create physics-enabled block
-    this.createCube(
+    const blockMesh = this.createCube(
       this.BLOCK_SIZE,
       1,
       spawnPos,
       Math.random() * 0xffffff,
     );
 
-    // Track the last created block
-    const blockMesh = this.rigidBodies[this.rigidBodies.length - 1];
+    // Track the created block
     const blockState = {
       mesh: blockMesh,
       velY: 0,
@@ -273,6 +296,7 @@ export class LevelOne extends GameScene {
     if (this.doorOpened) return;
     this.doorOpened = true;
     this.doorOpenAnim = 0;
+    this.showMessage("Victory!");
   }
 
   public override update() {
@@ -287,19 +311,39 @@ export class LevelOne extends GameScene {
         const body = block.mesh.userData.physicsBody;
         if (body) {
           const linVel = body.getLinearVelocity();
-          if (linVel && Math.abs(linVel.y()) < 0.1 && !block.onGround) {
+          const angVel = body.getAngularVelocity();
+          // More lenient velocity check and ensure block is near ground
+          const isSettled = linVel && Math.abs(linVel.y()) < 1.0 &&
+            Math.abs(linVel.x()) < 1.0 && Math.abs(linVel.z()) < 1.0 &&
+            angVel && Math.abs(angVel.x()) < 1.0 &&
+            Math.abs(angVel.y()) < 1.0 && Math.abs(angVel.z()) < 1.0;
+          const isNearGround = block.mesh.position.y < 2.0; // Within reasonable height from floor
+
+          if (isSettled && isNearGround && !block.onGround) {
             block.onGround = true;
             block.hasLandedHandled = true;
 
-            // Check if landed on button
+            // Check if landed on button (check X, Z, and Y position)
             const bx = block.mesh.position.x;
+            const by = block.mesh.position.y;
             const bz = block.mesh.position.z;
             const btn = this.button.position;
+
+            // Horizontal tolerance
             const half = this.BUTTON_SIZE / 2 + (this.BLOCK_SIZE / 2) * 0.9;
             const onButtonX = Math.abs(bx - btn.x) <= half;
             const onButtonZ = Math.abs(bz - btn.z) <= half;
 
-            if (onButtonX && onButtonZ && !this.doorOpened) {
+            // Vertical check - block should be resting on button
+            // Button: center at y=0.1, height=0.2, so top at y=0.2
+            // Block on button: center at 0.2 + 0.5 = 0.7
+            const buttonTopY = btn.y + 0.1; // 0.1 + 0.1 = 0.2
+            const blockOnButtonY = buttonTopY + this.BLOCK_SIZE / 2; // 0.2 + 0.5 = 0.7
+
+            // Check if block is on button (must be elevated above floor)
+            const onButtonY = Math.abs(by - blockOnButtonY) < 0.3;
+
+            if (onButtonX && onButtonZ && onButtonY && !this.doorOpened) {
               this.startOpenDoor();
             } else {
               if (!this.doorOpened) {
@@ -327,9 +371,6 @@ export class LevelOne extends GameScene {
       this.doorOpenAnim = Math.min(1, this.doorOpenAnim + deltaTime * 1.2);
       const t = 1 - Math.pow(1 - this.doorOpenAnim, 3);
       this.doorPivot.rotation.y = -Math.PI / 2 * t;
-      if (this.doorOpenAnim >= 1) {
-        this.showMessage("Victory!");
-      }
     }
   }
 }

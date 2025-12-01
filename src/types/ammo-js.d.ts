@@ -34,7 +34,11 @@ interface AmmoSequentialImpulseConstraintSolver {
 interface AmmoDiscreteDynamicsWorld {
   setGravity(gravity: AmmoVector3): void;
   addRigidBody(body: AmmoRigidBody): void;
-  stepSimulation(deltaTime: number, maxSubSteps: number): void;
+  stepSimulation(
+    deltaTime: number,
+    maxSubSteps?: number,
+    fixedTimeStep?: number,
+  ): void;
 }
 
 interface AmmoDefaultMotionState {

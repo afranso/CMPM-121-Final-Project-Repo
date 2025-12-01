@@ -57,7 +57,7 @@ export abstract class GameScene {
     mass: number,
     pos: THREE.Vector3,
     color: number,
-  ) {
+  ): THREE.Mesh {
     // 1. Three.js Visuals
     const geometry = new THREE.BoxGeometry(size, size, size);
     const material = new THREE.MeshPhongMaterial({ color });
@@ -95,13 +95,67 @@ export abstract class GameScene {
       mesh.userData.physicsBody = body;
       this.rigidBodies.push(mesh);
     }
+
+    return mesh;
+  }
+
+  // Helper to create a box with custom dimensions
+  protected createBox(
+    width: number,
+    height: number,
+    depth: number,
+    mass: number,
+    pos: THREE.Vector3,
+    color: number,
+  ): THREE.Mesh {
+    // 1. Three.js Visuals
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    const material = new THREE.MeshPhongMaterial({ color });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(pos);
+    this.scene.add(mesh);
+
+    // 2. Ammo.js Physics
+    const transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
+
+    const motionState = new Ammo.btDefaultMotionState(transform);
+    const colShape = new Ammo.btBoxShape(
+      new Ammo.btVector3(width * 0.5, height * 0.5, depth * 0.5),
+    );
+    const localInertia = new Ammo.btVector3(0, 0, 0);
+
+    if (mass > 0) {
+      colShape.calculateLocalInertia(mass, localInertia);
+    }
+
+    const rbInfo = new Ammo.btRigidBodyConstructionInfo(
+      mass,
+      motionState,
+      colShape,
+      localInertia,
+    );
+    const body = new Ammo.btRigidBody(rbInfo);
+
+    this.physicsWorld.addRigidBody(body);
+
+    // 3. Link them
+    if (mass > 0) {
+      mesh.userData.physicsBody = body;
+      this.rigidBodies.push(mesh);
+    }
+
+    return mesh;
   }
 
   public update() {
     const deltaTime = this.clock.getDelta();
 
-    // Step Physics World
-    this.physicsWorld.stepSimulation(deltaTime, 10);
+    // Step Physics World with fixed timestep to prevent tunneling
+    // Clamp deltaTime to prevent spiral of death and use fixed substeps
+    const clampedDelta = Math.min(deltaTime, 0.1);
+    this.physicsWorld.stepSimulation(clampedDelta, 10, 1 / 60);
 
     // Sync Visuals to Physics
     for (let i = 0; i < this.rigidBodies.length; i++) {
