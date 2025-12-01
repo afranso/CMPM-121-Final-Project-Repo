@@ -5,7 +5,8 @@
       "dom",
       "dom.iterable"
     ],
-    "strict": true
+    "strict": true,
+    "types": ["./src/types/ammo-js.d.ts"]
   },
   "lint": {
     "rules": {

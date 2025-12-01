@@ -1,3 +1,4 @@
+/// <reference types="./types/ammo-js.d.ts" />
 import * as THREE from "three";
 
 export abstract class GameScene {
