@@ -22,7 +22,12 @@ export class LevelOne extends GameScene {
   private chest!: THREE.Mesh;
   private bat!: THREE.Mesh;
   private inventory: string[] = [];
-  private state = { doorOpened: false, chestOpened: false, wrongLandings: 0 };
+  private state = {
+    doorOpened: false,
+    chestOpened: false,
+    wrongLandings: 0,
+    blockSpawningEnabled: true,
+  };
   private blocks: Array<{ mesh: THREE.Mesh; handled: boolean }> = [];
 
   constructor() {
@@ -95,13 +100,20 @@ export class LevelOne extends GameScene {
       },
     ];
     if (zOffset === 0) {
+      // Left wall segment
       wallParams[0] = {
         dim: { x: 9, y: 6, z: 0.5 },
         pos: new THREE.Vector3(-5.5, 3, CONSTANTS.DOOR_Z),
       };
+      // Right wall segment
       wallParams.push({
         dim: { x: 9, y: 6, z: 0.5 },
         pos: new THREE.Vector3(5.5, 3, CONSTANTS.DOOR_Z),
+      });
+      // Wall segment above the door
+      wallParams.push({
+        dim: { x: 2, y: 3, z: 0.5 }, // width matches door, height fills above
+        pos: new THREE.Vector3(0, 4.5, CONSTANTS.DOOR_Z), // position above door
       });
     }
     wallParams.forEach((p) =>
@@ -194,7 +206,11 @@ export class LevelOne extends GameScene {
 
   private raycastUpdateMarker(coords: THREE.Vector2) {
     this.raycaster.setFromCamera(coords, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children);
+    // Exclude the marker itself from intersection results
+    const objectsToIntersect = this.scene.children.filter((obj) =>
+      obj !== this.marker
+    );
+    const intersects = this.raycaster.intersectObjects(objectsToIntersect);
     if (intersects.length > 0) {
       this.marker.position.copy(intersects[0].point).add(
         new THREE.Vector3(0, 0.05, 0),
@@ -204,11 +220,16 @@ export class LevelOne extends GameScene {
 
   private handleLeftClick(coords: THREE.Vector2) {
     this.raycaster.setFromCamera(coords, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children);
+    // Only check visible objects for intersection
+    const visibleObjects = this.scene.children.filter((obj) =>
+      (obj as THREE.Mesh).visible !== false
+    );
+    const intersects = this.raycaster.intersectObjects(visibleObjects);
     if (intersects.length === 0) return;
-    const hitObj = intersects[0].object;
 
-    if (hitObj === this.keyMesh && this.keyMesh.visible) {
+    // Check if any intersected object is the key mesh
+    const keyIntersect = intersects.find((i) => i.object === this.keyMesh);
+    if (keyIntersect && this.keyMesh.visible) {
       this.keyMesh.visible = false;
       this.inventory.push("Key");
       this.ui.updateInventory(this.inventory);
@@ -216,7 +237,9 @@ export class LevelOne extends GameScene {
       return;
     }
 
-    if (hitObj === this.chest) {
+    // Check if any intersected object is the chest
+    const chestIntersect = intersects.find((i) => i.object === this.chest);
+    if (chestIntersect) {
       if (this.inventory.includes("Key")) {
         (this.chest.material as THREE.MeshStandardMaterial).color.set(0xD2B48C);
         this.bat.visible = true;
@@ -228,7 +251,9 @@ export class LevelOne extends GameScene {
       return;
     }
 
-    if (hitObj === this.bat && this.bat.visible) {
+    // Check if any intersected object is the bat
+    const batIntersect = intersects.find((i) => i.object === this.bat);
+    if (batIntersect && this.bat.visible) {
       this.bat.visible = false;
       this.inventory.push("Bat");
       this.ui.updateInventory(this.inventory);
@@ -236,7 +261,10 @@ export class LevelOne extends GameScene {
       return;
     }
 
-    this.spawnBlock(this.marker.position);
+    // Only allow block spawning if enabled
+    if (this.state.blockSpawningEnabled) {
+      this.spawnBlock(this.marker.position);
+    }
   }
 
   private spawnBlock(pos: THREE.Vector3) {
@@ -288,6 +316,7 @@ export class LevelOne extends GameScene {
         b.handled = true;
         if (b.mesh.position.distanceTo(CONSTANTS.BUTTON_POS) < 1.0) {
           this.keyMesh.visible = true;
+          this.state.blockSpawningEnabled = false;
           this.ui.showMessage("Key Spawned!");
         } else {
           this.state.wrongLandings++;
