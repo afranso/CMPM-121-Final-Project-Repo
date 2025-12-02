@@ -1,25 +1,19 @@
 /// <reference types="./types/ammo-js.d.ts" />
 import * as THREE from "three";
+import { InputManager } from "./inputManager.ts";
 
 export abstract class GameScene {
   protected scene: THREE.Scene;
   protected camera: THREE.PerspectiveCamera;
   protected physicsWorld!: Ammo.btDiscreteDynamicsWorld;
   protected clock: THREE.Clock;
+  protected inputManager: InputManager;
 
-  // Arrays to keep track of objects to update
   protected rigidBodies: THREE.Mesh[] = [];
   protected tmpTrans: Ammo.btTransform;
 
-  // Player properties
   protected playerBody!: Ammo.btRigidBody;
   protected playerMesh!: THREE.Mesh;
-  protected isPlayerMoving = {
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-  };
   protected readonly PLAYER_SPEED = 5;
   protected readonly PLAYER_MASS = 50;
 
@@ -32,15 +26,12 @@ export abstract class GameScene {
       1000,
     );
     this.clock = new THREE.Clock();
-
-    // Initialize Ammo temporary transform helper (for optimization)
+    this.inputManager = new InputManager();
     this.tmpTrans = new Ammo.btTransform();
 
     this.initPhysics();
     this.initLights();
-    this.setupPlayer(); // Setup the physics body for the player
-    this.setupInputListeners(); // Add input listeners
-    this.setupMouseLook(); // Add mouse look functionality
+    this.setupPlayer();
   }
 
   private initPhysics() {
@@ -66,37 +57,31 @@ export abstract class GameScene {
     this.scene.add(ambientLight, dirLight);
   }
 
-  // Abstract method to be implemented by subclasses for player initialization
   protected abstract setupPlayer(): void;
 
-  // Helper to create a physics object
-  protected createCube(
-    size: number,
+  // Unified body creation (DRY replacement for createCube/createBox)
+  protected createBody(
+    size: { x: number; y: number; z: number },
     mass: number,
     pos: THREE.Vector3,
-    color: number,
+    color: number | THREE.Color,
   ): THREE.Mesh {
-    // 1. Three.js Visuals
-    const geometry = new THREE.BoxGeometry(size, size, size);
+    const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
     const material = new THREE.MeshPhongMaterial({ color });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(pos);
     this.scene.add(mesh);
 
-    // 2. Ammo.js Physics
     const transform = new Ammo.btTransform();
     transform.setIdentity();
     transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
 
     const motionState = new Ammo.btDefaultMotionState(transform);
     const colShape = new Ammo.btBoxShape(
-      new Ammo.btVector3(size * 0.5, size * 0.5, size * 0.5),
+      new Ammo.btVector3(size.x * 0.5, size.y * 0.5, size.z * 0.5),
     );
     const localInertia = new Ammo.btVector3(0, 0, 0);
-
-    if (mass > 0) {
-      colShape.calculateLocalInertia(mass, localInertia);
-    }
+    if (mass > 0) colShape.calculateLocalInertia(mass, localInertia);
 
     const rbInfo = new Ammo.btRigidBodyConstructionInfo(
       mass,
@@ -105,19 +90,22 @@ export abstract class GameScene {
       localInertia,
     );
     const body = new Ammo.btRigidBody(rbInfo);
-
     this.physicsWorld.addRigidBody(body);
 
-    // 3. Link them
-    if (mass > 0) {
-      mesh.userData.physicsBody = body;
-      this.rigidBodies.push(mesh);
-    }
-
+    mesh.userData.physicsBody = body;
+    if (mass > 0) this.rigidBodies.push(mesh);
     return mesh;
   }
 
-  // Helper to create a box with custom dimensions
+  // Backwards compatibility helpers (retain old names if referenced elsewhere)
+  protected createCube(
+    size: number,
+    mass: number,
+    pos: THREE.Vector3,
+    color: number,
+  ): THREE.Mesh {
+    return this.createBody({ x: size, y: size, z: size }, mass, pos, color);
+  }
   protected createBox(
     width: number,
     height: number,
@@ -126,182 +114,53 @@ export abstract class GameScene {
     pos: THREE.Vector3,
     color: number,
   ): THREE.Mesh {
-    // 1. Three.js Visuals
-    const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshPhongMaterial({ color });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(pos);
-    this.scene.add(mesh);
-
-    // 2. Ammo.js Physics
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-
-    const motionState = new Ammo.btDefaultMotionState(transform);
-    const colShape = new Ammo.btBoxShape(
-      new Ammo.btVector3(width * 0.5, height * 0.5, depth * 0.5),
-    );
-    const localInertia = new Ammo.btVector3(0, 0, 0);
-
-    if (mass > 0) {
-      colShape.calculateLocalInertia(mass, localInertia);
-    }
-
-    const rbInfo = new Ammo.btRigidBodyConstructionInfo(
-      mass,
-      motionState,
-      colShape,
-      localInertia,
-    );
-    const body = new Ammo.btRigidBody(rbInfo);
-
-    this.physicsWorld.addRigidBody(body);
-
-    // 3. Link them
-    if (mass > 0) {
-      mesh.userData.physicsBody = body;
-      this.rigidBodies.push(mesh);
-    }
-
-    return mesh;
+    return this.createBody({ x: width, y: height, z: depth }, mass, pos, color);
   }
 
-  private setupInputListeners() {
-    globalThis.addEventListener("keydown", (event) => {
-      switch (event.key) {
-        case "w":
-        case "ArrowUp":
-          this.isPlayerMoving.forward = true;
-          break;
-        case "s":
-        case "ArrowDown":
-          this.isPlayerMoving.backward = true;
-          break;
-        case "a":
-        case "ArrowLeft":
-          this.isPlayerMoving.left = true;
-          break;
-        case "d":
-        case "ArrowRight":
-          this.isPlayerMoving.right = true;
-          break;
-      }
-    });
-
-    globalThis.addEventListener("keyup", (event) => {
-      switch (event.key) {
-        case "w":
-        case "ArrowUp":
-          this.isPlayerMoving.forward = false;
-          break;
-        case "s":
-        case "ArrowDown":
-          this.isPlayerMoving.backward = false;
-          break;
-        case "a":
-        case "ArrowLeft":
-          this.isPlayerMoving.left = false;
-          break;
-        case "d":
-        case "ArrowRight":
-          this.isPlayerMoving.right = false;
-          break;
-      }
-    });
-
-    // Ensure the canvas retains focus for keyboard input after clicking
-    globalThis.addEventListener("click", () => {
-      globalThis.focus();
-    });
-  }
-
-  private setupMouseLook() {
-    let isMouseDown = false;
-
-    globalThis.addEventListener("mousedown", (event) => {
-      // Only enable mouse look for the right mouse button (button === 2)
-      if (event.button === 2) {
-        isMouseDown = true;
-      }
-    });
-
-    globalThis.addEventListener("mouseup", (event) => {
-      // Only disable mouse look for the right mouse button
-      if (event.button === 2) {
-        isMouseDown = false;
-      }
-    });
-
-    globalThis.addEventListener("mousemove", (event) => {
-      if (!isMouseDown) return;
-
-      // Adjust camera rotation based on mouse movement
-      const rotationSpeed = 0.002;
-      this.camera.rotation.y -= event.movementX * rotationSpeed;
-      this.camera.rotation.x -= event.movementY * rotationSpeed;
-
-      // Clamp the vertical rotation to prevent flipping
-      this.camera.rotation.x = Math.max(
-        -Math.PI / 2,
-        Math.min(Math.PI / 2, this.camera.rotation.x),
-      );
-    });
-
-    // Prevent context menu from appearing on right-click
-    globalThis.addEventListener(
-      "contextmenu",
-      (event) => event.preventDefault(),
+  protected updateCameraLook() {
+    const rotationSpeed = 0.002;
+    this.camera.rotation.y -= this.inputManager.mouseDelta.x * rotationSpeed;
+    this.camera.rotation.x -= this.inputManager.mouseDelta.y * rotationSpeed;
+    this.camera.rotation.x = Math.max(
+      -Math.PI / 2,
+      Math.min(Math.PI / 2, this.camera.rotation.x),
     );
+    this.inputManager.mouseDelta.set(0, 0);
   }
 
-  private handlePlayerMovement(_deltaTime: number) {
+  protected handlePlayerMovement() {
     if (!this.playerBody) return;
 
-    const moveSpeed = this.PLAYER_SPEED;
     const direction = new THREE.Vector3();
+    const { keys } = this.inputManager;
 
-    if (this.isPlayerMoving.forward) {
-      direction.z -= 1;
-    }
-    if (this.isPlayerMoving.backward) {
-      direction.z += 1;
-    }
-    if (this.isPlayerMoving.left) {
-      direction.x -= 1;
-    }
-    if (this.isPlayerMoving.right) {
-      direction.x += 1;
-    }
+    if (keys["w"] || keys["ArrowUp"]) direction.z -= 1;
+    if (keys["s"] || keys["ArrowDown"]) direction.z += 1;
+    if (keys["a"] || keys["ArrowLeft"]) direction.x -= 1;
+    if (keys["d"] || keys["ArrowRight"]) direction.x += 1;
 
-    // Normalize direction to prevent faster diagonal movement
     direction.normalize();
 
-    // Rotate movement direction based on camera orientation
-    const cameraDirection = new THREE.Vector3();
-    this.camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0; // Keep movement horizontal
-    cameraDirection.normalize();
+    const cameraDir = new THREE.Vector3();
+    this.camera.getWorldDirection(cameraDir);
+    cameraDir.y = 0;
+    cameraDir.normalize();
 
     const right = new THREE.Vector3().crossVectors(
       new THREE.Vector3(0, 1, 0),
-      cameraDirection,
+      cameraDir,
     );
-
-    // Correct movement direction based on camera orientation
     const moveVector = new THREE.Vector3()
-      .addScaledVector(cameraDirection, -direction.z) // Invert forward/backward
-      .addScaledVector(right, -direction.x); // Invert left/right
+      .addScaledVector(cameraDir, -direction.z)
+      .addScaledVector(right, -direction.x);
 
-    // Apply movement as a force to the player's physics body
     const impulse = new Ammo.btVector3(
-      moveVector.x * moveSpeed,
+      moveVector.x * this.PLAYER_SPEED,
       0,
-      moveVector.z * moveSpeed,
+      moveVector.z * this.PLAYER_SPEED,
     );
     this.playerBody.applyCentralImpulse(impulse);
 
-    // Sync camera to player position
     const ms = this.playerBody.getMotionState();
     if (ms) {
       ms.getWorldTransform(this.tmpTrans);
@@ -312,30 +171,27 @@ export abstract class GameScene {
 
   public update() {
     const deltaTime = this.clock.getDelta();
+    this.updateCameraLook();
+    this.handlePlayerMovement();
 
-    // Call the new movement handler
-    this.handlePlayerMovement(deltaTime);
+    this.physicsWorld.stepSimulation(Math.min(deltaTime, 0.1), 10, 1 / 60);
 
-    // Step Physics World with fixed timestep to prevent tunneling
-    // Clamp deltaTime to prevent spiral of death and use fixed substeps
-    const clampedDelta = Math.min(deltaTime, 0.1);
-    this.physicsWorld.stepSimulation(clampedDelta, 10, 1 / 60);
-
-    // Sync Visuals to Physics
-    for (let i = 0; i < this.rigidBodies.length; i++) {
-      const objThree = this.rigidBodies[i];
-      const objPhys = objThree.userData.physicsBody;
+    for (const objThree of this.rigidBodies) {
+      const objPhys = objThree.userData.physicsBody as Ammo.btRigidBody;
       const ms = objPhys.getMotionState();
-
       if (ms) {
         ms.getWorldTransform(this.tmpTrans);
         const p = this.tmpTrans.getOrigin();
         const q = this.tmpTrans.getRotation();
-
         objThree.position.set(p.x(), p.y(), p.z());
         objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
       }
     }
+  }
+
+  public dispose() {
+    this.inputManager.dispose();
+    // Physics cleanup would go here
   }
 
   public getScene(): THREE.Scene {

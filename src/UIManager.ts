@@ -1,0 +1,56 @@
+export class UIManager {
+  private overlay: HTMLDivElement;
+  private messageBox: HTMLDivElement;
+  private inventoryBox: HTMLDivElement;
+
+  constructor() {
+    this.overlay = document.createElement("div");
+    this.overlay.style.cssText = `
+      position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+      display: flex; align-items: flex-start; justify-content: center;
+      pointer-events: none; z-index: 10;
+    `;
+
+    this.messageBox = document.createElement("div");
+    this.messageBox.style.cssText = `
+      margin-top: 10vh; padding: 24px 36px; background: rgba(0,0,0,0.8);
+      color: white; font-family: sans-serif; font-size: 28px;
+      border-radius: 8px; display: none;
+    `;
+
+    this.inventoryBox = document.createElement("div");
+    this.inventoryBox.style.cssText = `
+      position: fixed; right: 20px; bottom: 20px; padding: 10px;
+      background: rgba(0,0,0,0.6); color: white; border-radius: 8px;
+      font-family: sans-serif; font-size: 18px; min-width: 150px;
+      text-align: center; z-index: 10;
+    `;
+
+    this.overlay.appendChild(this.messageBox);
+    document.body.appendChild(this.overlay);
+    document.body.appendChild(this.inventoryBox);
+    this.updateInventory([]);
+  }
+
+  public showMessage(text: string, duration = 2000) {
+    this.messageBox.textContent = text;
+    this.messageBox.style.display = "block";
+    setTimeout(() => (this.messageBox.style.display = "none"), duration);
+  }
+
+  public updateInventory(items: string[]) {
+    if (items.length === 0) {
+      this.inventoryBox.innerHTML = "Inventory: (Empty)";
+    } else {
+      const itemStr = items.map((i) =>
+        `<span style="color: yellow;">${i}</span>`
+      ).join(", ");
+      this.inventoryBox.innerHTML = `Inventory: [${itemStr}]`;
+    }
+  }
+
+  public dispose() {
+    this.overlay.remove();
+    this.inventoryBox.remove();
+  }
+}
