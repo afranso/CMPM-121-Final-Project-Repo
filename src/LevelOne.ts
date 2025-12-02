@@ -271,7 +271,9 @@ export class LevelOne extends GameScene {
       this.bat.visible = false;
       this.inventory.push("Bat");
       this.ui.updateInventory(this.inventory);
-      this.ui.showMessage("Bat Equipped!");
+      this.ui.showMessage("Bat Equipped!", 2000);
+      // Trigger Game Over
+      setTimeout(() => this.gameOver(), 500);
       return;
     }
 
@@ -407,5 +409,11 @@ export class LevelOne extends GameScene {
     }
     this.blocks.length = 0;
     this.blockPool.dispose();
+  }
+
+  private gameOver() {
+    this.ui.showOverlay("🎉 LEVEL 1 COMPLETE 🎉", "You got the Bat!");
+    this.state.blockSpawningEnabled = false;
+    this.inputManager.clear();
   }
 }

@@ -53,4 +53,29 @@ export class UIManager {
     this.overlay.remove();
     this.inventoryBox.remove();
   }
+
+  public showOverlay(title: string, message: string) {
+    const overlay = document.createElement("div");
+    overlay.id = "game-over-overlay";
+    overlay.style.position = "absolute";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    overlay.style.color = "white";
+    overlay.style.display = "flex";
+    overlay.style.flexDirection = "column";
+    overlay.style.justifyContent = "center";
+    overlay.style.alignItems = "center";
+    overlay.style.fontSize = "32px";
+    overlay.style.zIndex = "1000";
+    overlay.style.textAlign = "center";
+    overlay.innerHTML = `
+    <h1>${title}</h1>
+    <p style="font-size: 24px; color: #aaa;">${message}</p>
+    <p style="font-size: 18px; color: #888;">Refresh to play again</p>
+  `;
+    document.body.appendChild(overlay);
+  }
 }

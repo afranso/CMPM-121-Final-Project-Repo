@@ -1,6 +1,9 @@
 import * as THREE from "three";
 
 export class InputManager {
+  clear() {
+    throw new Error("Method not implemented.");
+  }
   private keys: Set<string> = new Set();
   private mouseDelta = new THREE.Vector2();
   private _isRightMouseDown = false;
