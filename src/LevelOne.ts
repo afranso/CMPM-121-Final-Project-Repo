@@ -50,6 +50,9 @@ export class LevelOne extends GameScene {
     this.playerMesh.visible = false; // use camera as visual representation
     this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
     this.camera.lookAt(0, 1, 0);
+
+    // Initialize PlayerController now that playerBody is ready
+    this.initPlayerController();
   }
 
   private setupLevel() {
@@ -187,19 +190,13 @@ export class LevelOne extends GameScene {
   }
 
   private setupInteractions() {
-    globalThis.addEventListener("pointermove", (e) => {
-      const coords = this.inputManager.getNormalizedMouseCoordinates(
-        e.clientX,
-        e.clientY,
-      );
+    globalThis.addEventListener("pointermove", (_e) => {
+      const coords = this.inputManager.getNormalizedMousePosition();
       this.raycastUpdateMarker(coords);
     });
     globalThis.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
-      const coords = this.inputManager.getNormalizedMouseCoordinates(
-        e.clientX,
-        e.clientY,
-      );
+      const coords = this.inputManager.getNormalizedMousePosition();
       this.handleLeftClick(coords);
     });
   }
@@ -289,8 +286,7 @@ export class LevelOne extends GameScene {
 
   public override update() {
     super.update();
-    if (this.inputManager.keys["e"]) {
-      this.inputManager.keys["e"] = false;
+    if (this.inputManager.consumeKey("e")) {
       this.tryOpenDoor();
     }
     this.checkBlockPuzzles();
