@@ -6,7 +6,8 @@ const CONSTANTS = {
   ROOM_WIDTH: 20,
   WALL_HEIGHT: 6,
   WALL_THICKNESS: 0.5,
-  DOOR_Z: -9.75,
+  // Move door/front wall slightly forward to avoid z-fighting with back wall
+  DOOR_Z: -9.5,
   KEY_POS: new THREE.Vector3(1.5, 0.2, -6),
   BUTTON_POS: new THREE.Vector3(0, 0.1, -6),
   COLORS: { WALL: 0x666666, FLOOR: 0x808080, BUTTON: 0xff4444, KEY: 0xffff00 },
@@ -28,7 +29,9 @@ export class LevelOne extends GameScene {
     wrongLandings: 0,
     blockSpawningEnabled: true,
   };
-  private blocks: Array<{ mesh: THREE.Mesh; handled: boolean }> = [];
+  private blocks: Array<
+    { mesh: THREE.Mesh; body: Ammo.btRigidBody; handled: boolean }
+  > = [];
 
   constructor() {
     super();
@@ -56,8 +59,8 @@ export class LevelOne extends GameScene {
   }
 
   private setupLevel() {
-    this.createRoom(0);
-    this.createRoom(-20);
+    this.createRoom(0, true);
+    this.createRoom(-20, false);
     this.createDoor();
     this.createButton();
     this.createMarker();
@@ -69,59 +72,64 @@ export class LevelOne extends GameScene {
     this.scene.add(hemi);
   }
 
-  private createRoom(zOffset: number) {
+  private createRoom(zOffset: number, hasDoor: boolean) {
+    // Floor
     this.createBody(
       { x: CONSTANTS.ROOM_WIDTH, y: 1, z: CONSTANTS.ROOM_WIDTH },
       0,
       new THREE.Vector3(0, -0.5, zOffset),
       CONSTANTS.COLORS.FLOOR,
     );
-    const wallParams = [
-      {
-        dim: {
-          x: CONSTANTS.ROOM_WIDTH,
-          y: CONSTANTS.WALL_HEIGHT,
-          z: CONSTANTS.WALL_THICKNESS,
-        },
-        pos: new THREE.Vector3(0, 3, zOffset - 10 + 0.25),
-      },
-      {
-        dim: {
-          x: CONSTANTS.WALL_THICKNESS,
-          y: CONSTANTS.WALL_HEIGHT,
-          z: CONSTANTS.ROOM_WIDTH,
-        },
-        pos: new THREE.Vector3(-10 + 0.25, 3, zOffset),
-      },
-      {
-        dim: {
-          x: CONSTANTS.WALL_THICKNESS,
-          y: CONSTANTS.WALL_HEIGHT,
-          z: CONSTANTS.ROOM_WIDTH,
-        },
-        pos: new THREE.Vector3(10 - 0.25, 3, zOffset),
-      },
-    ];
-    if (zOffset === 0) {
-      // Left wall segment
-      wallParams[0] = {
-        dim: { x: 9, y: 6, z: 0.5 },
-        pos: new THREE.Vector3(-5.5, 3, CONSTANTS.DOOR_Z),
-      };
-      // Right wall segment
-      wallParams.push({
-        dim: { x: 9, y: 6, z: 0.5 },
-        pos: new THREE.Vector3(5.5, 3, CONSTANTS.DOOR_Z),
-      });
-      // Wall segment above the door
-      wallParams.push({
-        dim: { x: 2, y: 3, z: 0.5 }, // width matches door, height fills above
-        pos: new THREE.Vector3(0, 4.5, CONSTANTS.DOOR_Z), // position above door
-      });
+
+    const W = CONSTANTS.ROOM_WIDTH;
+    const H = CONSTANTS.WALL_HEIGHT;
+    const T = CONSTANTS.WALL_THICKNESS;
+
+    // Back wall: keep for non-door rooms; remove in door room to allow passage
+    if (!(hasDoor && zOffset === 0)) {
+      this.createBody(
+        { x: W, y: H, z: T },
+        0,
+        new THREE.Vector3(0, 3, zOffset - 10 + 0.25),
+        CONSTANTS.COLORS.WALL,
+      );
     }
-    wallParams.forEach((p) =>
-      this.createBody(p.dim, 0, p.pos, CONSTANTS.COLORS.WALL)
+    // Left wall
+    this.createBody(
+      { x: T, y: H, z: W },
+      0,
+      new THREE.Vector3(-10 + 0.25, 3, zOffset),
+      CONSTANTS.COLORS.WALL,
     );
+    // Right wall
+    this.createBody(
+      { x: T, y: H, z: W },
+      0,
+      new THREE.Vector3(10 - 0.25, 3, zOffset),
+      CONSTANTS.COLORS.WALL,
+    );
+
+    if (hasDoor) {
+      // Front wall segments around door + above door
+      this.createBody(
+        { x: 9, y: 6, z: 0.5 },
+        0,
+        new THREE.Vector3(-5.5, 3, CONSTANTS.DOOR_Z),
+        CONSTANTS.COLORS.WALL,
+      );
+      this.createBody(
+        { x: 9, y: 6, z: 0.5 },
+        0,
+        new THREE.Vector3(5.5, 3, CONSTANTS.DOOR_Z),
+        CONSTANTS.COLORS.WALL,
+      );
+      this.createBody(
+        { x: 2, y: 3, z: 0.5 },
+        0,
+        new THREE.Vector3(0, 4.5, CONSTANTS.DOOR_Z),
+        CONSTANTS.COLORS.WALL,
+      );
+    }
   }
 
   private createDoor() {
@@ -276,12 +284,28 @@ export class LevelOne extends GameScene {
       spawnPos,
       Math.random() * 0xffffff,
     );
-    const blockData = { mesh, handled: false };
+    const body = mesh.userData.physicsBody as Ammo.btRigidBody;
+    const blockData = { mesh, body, handled: false };
     this.blocks.push(blockData);
     setTimeout(() => {
-      this.scene.remove(mesh);
-      this.blocks = this.blocks.filter((b) => b !== blockData);
+      this.removeBlock(blockData);
     }, 6000);
+  }
+
+  private removeBlock(
+    block: { mesh: THREE.Mesh; body: Ammo.btRigidBody; handled: boolean },
+  ) {
+    // Remove visual
+    this.scene.remove(block.mesh);
+    // Remove physics body from world and tracking arrays
+    this.physicsWorld.removeRigidBody(block.body);
+    // Remove from LevelOne blocks array
+    this.blocks = this.blocks.filter((b) => b !== block);
+    // Also remove from GameScene tracking arrays to avoid dangling references
+    this.physicsObjects = this.physicsObjects.filter((po) =>
+      po.mesh !== block.mesh
+    );
+    this.allBodies = this.allBodies.filter((po) => po.mesh !== block.mesh);
   }
 
   public override update() {
@@ -306,8 +330,7 @@ export class LevelOne extends GameScene {
   private checkBlockPuzzles() {
     this.blocks.forEach((b) => {
       if (b.handled) return;
-      const body = b.mesh.userData.physicsBody as Ammo.btRigidBody;
-      const vel = body.getLinearVelocity();
+      const vel = b.body.getLinearVelocity();
       if (Math.abs(vel.y()) < 0.1 && Math.abs(vel.x()) < 0.1) {
         b.handled = true;
         if (b.mesh.position.distanceTo(CONSTANTS.BUTTON_POS) < 1.0) {

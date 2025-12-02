@@ -6,6 +6,12 @@ export class PlayerController {
   private input: InputManager;
   private body: Ammo.btRigidBody;
   private tmpTrans = new Ammo.btTransform();
+  // Reusable Ammo vector to avoid per-frame allocations
+  private tmpAmmoVec = new Ammo.btVector3(0, 0, 0);
+  // Reusable THREE vectors
+  private forward = new THREE.Vector3();
+  private right = new THREE.Vector3();
+  private moveDir = new THREE.Vector3();
 
   private readonly SPEED = 5;
   private readonly ROTATION_SPEED = 0.002;
@@ -52,14 +58,21 @@ export class PlayerController {
 
     if (moveZ === 0 && moveX === 0) {
       const v = this.body.getLinearVelocity();
-      const dampFactor = 0.8;
-      this.body.setLinearVelocity(
-        new Ammo.btVector3(
-          v.x() * dampFactor,
-          v.y(),
-          v.z() * dampFactor,
-        ),
-      );
+      const dampFactor = 0.1; // stronger horizontal stop
+      const tmp = this.tmpAmmoVec as unknown as {
+        setValue?: (x: number, y: number, z: number) => void;
+        setX?: (x: number) => void;
+        setY?: (y: number) => void;
+        setZ?: (z: number) => void;
+      };
+      if (tmp.setValue) {
+        tmp.setValue(v.x() * dampFactor, v.y(), v.z() * dampFactor);
+      } else {
+        tmp.setX && tmp.setX(v.x() * dampFactor);
+        tmp.setY && tmp.setY(v.y());
+        tmp.setZ && tmp.setZ(v.z() * dampFactor);
+      }
+      this.body.setLinearVelocity(this.tmpAmmoVec);
       const anyBody = this.body as unknown as {
         activate?: (force?: boolean) => void;
       };
@@ -68,33 +81,39 @@ export class PlayerController {
     }
 
     // Get forward vector projected on XZ plane
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
-      this.camera.quaternion,
-    );
-    forward.y = 0;
-    forward.normalize();
+    this.forward.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    this.forward.y = 0;
+    this.forward.normalize();
 
-    // Compute camera-right correctly: forward × up
-    const right = new THREE.Vector3().crossVectors(
-      forward,
-      new THREE.Vector3(0, 1, 0),
-    ).normalize();
+    this.right.crossVectors(this.forward, new THREE.Vector3(0, 1, 0))
+      .normalize();
 
-    const moveDir = new THREE.Vector3()
-      .addScaledVector(forward, -moveZ)
-      .addScaledVector(right, moveX)
+    this.moveDir.set(0, 0, 0)
+      .addScaledVector(this.forward, -moveZ)
+      .addScaledVector(this.right, moveX)
       .normalize();
 
     const currentVel = this.body.getLinearVelocity();
 
     // Set velocity directly for snappier FPS controls, preserving Y (gravity)
-    this.body.setLinearVelocity(
-      new Ammo.btVector3(
-        moveDir.x * this.SPEED,
+    const tmp = this.tmpAmmoVec as unknown as {
+      setValue?: (x: number, y: number, z: number) => void;
+      setX?: (x: number) => void;
+      setY?: (y: number) => void;
+      setZ?: (z: number) => void;
+    };
+    if (tmp.setValue) {
+      tmp.setValue(
+        this.moveDir.x * this.SPEED,
         currentVel.y(),
-        moveDir.z * this.SPEED,
-      ),
-    );
+        this.moveDir.z * this.SPEED,
+      );
+    } else {
+      tmp.setX && tmp.setX(this.moveDir.x * this.SPEED);
+      tmp.setY && tmp.setY(currentVel.y());
+      tmp.setZ && tmp.setZ(this.moveDir.z * this.SPEED);
+    }
+    this.body.setLinearVelocity(this.tmpAmmoVec);
 
     // Force activation so physics engine doesn't sleep the player (typings-safe)
     const anyBody = this.body as unknown as {
@@ -110,5 +129,11 @@ export class PlayerController {
       const p = this.tmpTrans.getOrigin();
       this.camera.position.set(p.x(), p.y() + 0.5, p.z());
     }
+  }
+
+  // Optional explicit cleanup hook if upstream wants to release resources
+  public dispose() {
+    // Typings do not expose Ammo.destroy; relying on GC.
+    // Place holder for future explicit WASM object destruction.
   }
 }
