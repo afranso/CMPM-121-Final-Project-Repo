@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 import { UIManager } from "./UIManager.ts";
+import { BlockPool, PooledBlock } from "./objectPool.ts";
 
 const CONSTANTS = {
   ROOM_WIDTH: 20,
@@ -30,12 +31,20 @@ export class LevelOne extends GameScene {
     blockSpawningEnabled: true,
   };
   private blocks: Array<
-    { mesh: THREE.Mesh; body: Ammo.btRigidBody; handled: boolean }
+    {
+      mesh: THREE.Mesh;
+      body: Ammo.btRigidBody;
+      pooled?: PooledBlock;
+      handled: boolean;
+    }
   > = [];
+  private blockPool!: BlockPool;
 
   constructor() {
     super();
     this.ui = new UIManager();
+    // Initialize block pool after physics world and scene are ready
+    this.blockPool = new BlockPool(this.physicsWorld, this.scene, 25);
     this.setupLevel();
     this.setupInteractions();
   }
@@ -278,34 +287,46 @@ export class LevelOne extends GameScene {
       return;
     }
     const spawnPos = pos.clone().setY(5);
-    const mesh = this.createBody(
-      { x: 1, y: 1, z: 1 },
-      1,
-      spawnPos,
-      Math.random() * 0xffffff,
-    );
-    const body = mesh.userData.physicsBody as Ammo.btRigidBody;
-    const blockData = { mesh, body, handled: false };
+    const pooled = this.blockPool.acquire(spawnPos, Math.random() * 0xffffff);
+    if (!pooled) {
+      this.ui.showMessage("Block pool exhausted.");
+      return;
+    }
+    // Register with GameScene tracking if first time
+    if (!this.allBodies.some((po) => po.mesh === pooled.mesh)) {
+      this.allBodies.push({ mesh: pooled.mesh, body: pooled.body });
+    }
+    if (!this.physicsObjects.some((po) => po.mesh === pooled.mesh)) {
+      this.physicsObjects.push({ mesh: pooled.mesh, body: pooled.body });
+    }
+    const blockData = {
+      mesh: pooled.mesh,
+      body: pooled.body,
+      pooled,
+      handled: false,
+    };
     this.blocks.push(blockData);
     setTimeout(() => {
-      this.removeBlock(blockData);
+      this.releaseBlock(blockData);
     }, 6000);
   }
 
-  private removeBlock(
-    block: { mesh: THREE.Mesh; body: Ammo.btRigidBody; handled: boolean },
+  private releaseBlock(
+    block: {
+      mesh: THREE.Mesh;
+      body: Ammo.btRigidBody;
+      pooled?: PooledBlock;
+      handled: boolean;
+    },
   ) {
-    // Remove visual
-    this.scene.remove(block.mesh);
-    // Remove physics body from world and tracking arrays
-    this.physicsWorld.removeRigidBody(block.body);
-    // Remove from LevelOne blocks array
+    // Release back to pool
+    if (block.pooled) this.blockPool.release(block.pooled);
+    // Remove from active puzzle tracking
     this.blocks = this.blocks.filter((b) => b !== block);
-    // Also remove from GameScene tracking arrays to avoid dangling references
+    // Remove from dynamic update list (leave in allBodies for disposal lifecycle)
     this.physicsObjects = this.physicsObjects.filter((po) =>
       po.mesh !== block.mesh
     );
-    this.allBodies = this.allBodies.filter((po) => po.mesh !== block.mesh);
   }
 
   public override update() {
@@ -346,4 +367,14 @@ export class LevelOne extends GameScene {
   }
 
   private addDebugHelpers(): void {}
+
+  public override dispose() {
+    super.dispose();
+    // Release any active blocks
+    for (const b of this.blocks) {
+      if (b.pooled) this.blockPool.release(b.pooled);
+    }
+    this.blocks.length = 0;
+    this.blockPool.dispose();
+  }
 }
