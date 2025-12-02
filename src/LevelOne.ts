@@ -361,9 +361,40 @@ export class LevelOne extends GameScene {
         } else {
           this.state.wrongLandings++;
           this.ui.showMessage(`Missed! (${this.state.wrongLandings}/3)`);
+          if (this.state.wrongLandings >= 3) {
+            this.resetLevel();
+          }
         }
       }
     });
+  }
+
+  private resetLevel() {
+    this.ui.showMessage("3 Misses! Level Reset!", 3000);
+
+    // Reset state
+    this.state.wrongLandings = 0;
+    this.state.blockSpawningEnabled = true;
+
+    // Clear all blocks
+    for (const b of this.blocks) {
+      if (b.pooled) this.blockPool.release(b.pooled);
+    }
+    this.blocks.length = 0;
+
+    // Hide key
+    this.keyMesh.visible = false;
+
+    // Reset player position
+    const startPos = new THREE.Vector3(0, 0.9, 5);
+    const transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
+    this.playerBody.setWorldTransform(transform);
+    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
+    this.camera.lookAt(0, 1, 0);
   }
 
   private addDebugHelpers(): void {}
