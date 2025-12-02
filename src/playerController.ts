@@ -50,7 +50,22 @@ export class PlayerController {
     const moveX = this.input.getAxis("d", "a") ||
       this.input.getAxis("ArrowRight", "ArrowLeft");
 
-    if (moveZ === 0 && moveX === 0) return;
+    if (moveZ === 0 && moveX === 0) {
+      const v = this.body.getLinearVelocity();
+      const dampFactor = 0.8;
+      this.body.setLinearVelocity(
+        new Ammo.btVector3(
+          v.x() * dampFactor,
+          v.y(),
+          v.z() * dampFactor,
+        ),
+      );
+      const anyBody = this.body as unknown as {
+        activate?: (force?: boolean) => void;
+      };
+      if (anyBody.activate) anyBody.activate(true);
+      return;
+    }
 
     // Get forward vector projected on XZ plane
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
