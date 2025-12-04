@@ -43,30 +43,29 @@ export class LevelOne extends GameScene {
     blockSpawningEnabled: true,
     boardBroken: false,
   };
-  private blocks: Array<
-    {
-      mesh: THREE.Mesh;
-      body: Ammo.btRigidBody;
-      pooled?: PooledBlock;
-      handled: boolean;
-    }
-  > = [];
+  private blocks: Array<{
+    mesh: THREE.Mesh;
+    body: Ammo.btRigidBody;
+    pooled?: PooledBlock;
+    handled: boolean;
+  }> = [];
   private blockPool!: BlockPool;
   private COLORS = BASE_COLORS.LIGHT;
+
+  // FPS look
+  private yaw = 0;
+  private pitch = 0;
+  private sensitivity = 0.002;
 
   constructor() {
     super();
     this.ui = new UIManager();
 
-    // ✅ Use globalThis instead of window for Deno
     const darkModeQuery = globalThis.matchMedia?.(
       "(prefers-color-scheme: dark)",
     );
-    if (darkModeQuery?.matches) {
-      this.COLORS = BASE_COLORS.DARK;
-    }
+    if (darkModeQuery?.matches) this.COLORS = BASE_COLORS.DARK;
 
-    // Listen for changes in preference (if supported)
     darkModeQuery?.addEventListener("change", (e: MediaQueryListEvent) => {
       this.COLORS = e.matches ? BASE_COLORS.DARK : BASE_COLORS.LIGHT;
       this.updateVisualTheme();
@@ -81,7 +80,7 @@ export class LevelOne extends GameScene {
       "Objective: Collect all 3 bats to break the barricade.",
     );
     this.ui.showTopRight(
-      "Controls:\n- Left Click: Interact / Pick Up\n- E: Open Door",
+      "Controls:\n- WASD: Move\n- Mouse: Look\n- Left Click: Interact / Pick Up\n- E: Open Door",
     );
   }
 
@@ -98,7 +97,8 @@ export class LevelOne extends GameScene {
     this.playerMesh.visible = false;
     this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
     this.camera.lookAt(0, 1, 0);
-    this.initPlayerController();
+
+    this.initPlayerController(); // keeps WASD movement
   }
 
   private setupLevel() {
@@ -112,7 +112,7 @@ export class LevelOne extends GameScene {
     this.createChest();
 
     this.createBats();
-    this.createBoard();
+    this.createBoard(); // board moved to bats room
     this.setupLighting();
   }
 
@@ -134,7 +134,6 @@ export class LevelOne extends GameScene {
   }
 
   private updateVisualTheme() {
-    // Update colors of objects
     this.scene.traverse((obj) => {
       if (
         obj instanceof THREE.Mesh &&
@@ -163,7 +162,6 @@ export class LevelOne extends GameScene {
       }
     });
 
-    // Update lights
     this.scene.children.forEach((obj) => {
       if (obj instanceof THREE.HemisphereLight) {
         obj.color.set(this.COLORS === BASE_COLORS.DARK ? 0x222244 : 0xffffff);
@@ -187,7 +185,9 @@ export class LevelOne extends GameScene {
       this.COLORS.FLOOR,
     );
 
-    const W = 20, H = 6, T = 0.5;
+    const W = 20,
+      H = 6,
+      T = 0.5;
 
     if (!(hasDoor && zOffset === 0)) {
       this.createBody(
@@ -309,16 +309,23 @@ export class LevelOne extends GameScene {
       new THREE.BoxGeometry(3, 2, 0.3),
       new THREE.MeshStandardMaterial({ color: this.COLORS.BOARD }),
     );
-    this.board.position.set(0, 1, -4);
+    this.board.position.set(0, 1, -18.5); // front of back wall in bats room
     this.board.visible = true;
     this.scene.add(this.board);
   }
 
   private setupInteractions() {
-    globalThis.addEventListener("pointermove", () => {
+    // Mouse look + WASD already handled by initPlayerController
+    globalThis.addEventListener("pointermove", (event: MouseEvent) => {
+      this.yaw -= event.movementX * this.sensitivity;
+      this.pitch -= event.movementY * this.sensitivity;
+      this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
+      this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
+
       const coords = this.inputManager.getNormalizedMousePosition();
       this.raycastUpdateMarker(coords);
     });
+
     globalThis.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       const coords = this.inputManager.getNormalizedMousePosition();
@@ -339,18 +346,15 @@ export class LevelOne extends GameScene {
 
   private tryBreakBoard() {
     if (!this.board.visible) return;
-
     if (this.batCount < 3) {
       this.ui.showMessage("You need all 3 bats to break the board!");
       return;
     }
-
     const dist = this.playerMesh.position.distanceTo(this.board.position);
     if (dist > 3) {
       this.ui.showMessage("Move closer to hit the board.");
       return;
     }
-
     this.board.visible = false;
     this.state.boardBroken = true;
     this.ui.showMessage("You smashed the board!", 2000);
@@ -408,9 +412,7 @@ export class LevelOne extends GameScene {
       return;
     }
 
-    if (this.state.blockSpawningEnabled) {
-      this.spawnBlock(this.marker.position);
-    }
+    if (this.state.blockSpawningEnabled) this.spawnBlock(this.marker.position);
   }
 
   private spawnBlock(pos: THREE.Vector3) {
@@ -457,20 +459,15 @@ export class LevelOne extends GameScene {
 
   public override update() {
     super.update();
-    if (this.inputManager.consumeKey("e")) {
-      this.tryOpenDoor();
-    }
+    if (this.inputManager.consumeKey("e")) this.tryOpenDoor();
     this.checkBlockPuzzles();
   }
 
   private tryOpenDoor() {
     if (this.state.doorOpened) return;
     if (this.playerMesh.position.distanceTo(this.doorMesh.position) < 3) {
-      if (this.inventory.includes("Key")) {
-        this.openDoor();
-      } else {
-        this.ui.showMessage("Need Key!");
-      }
+      if (this.inventory.includes("Key")) this.openDoor();
+      else this.ui.showMessage("Need Key!");
     }
   }
 
@@ -487,9 +484,7 @@ export class LevelOne extends GameScene {
         } else {
           this.state.wrongLandings++;
           this.ui.showMessage(`Missed! (${this.state.wrongLandings}/3)`);
-          if (this.state.wrongLandings >= 3) {
-            this.resetLevel();
-          }
+          if (this.state.wrongLandings >= 3) this.resetLevel();
         }
       }
     });
@@ -499,9 +494,7 @@ export class LevelOne extends GameScene {
     this.ui.showMessage("3 Misses! Level Reset!", 3000);
     this.state.wrongLandings = 0;
     this.state.blockSpawningEnabled = true;
-    for (const b of this.blocks) {
-      if (b.pooled) this.blockPool.release(b.pooled);
-    }
+    for (const b of this.blocks) if (b.pooled) this.blockPool.release(b.pooled);
     this.blocks.length = 0;
     this.keyMesh.visible = false;
 
@@ -518,9 +511,7 @@ export class LevelOne extends GameScene {
 
   public override dispose() {
     super.dispose();
-    for (const b of this.blocks) {
-      if (b.pooled) this.blockPool.release(b.pooled);
-    }
+    for (const b of this.blocks) if (b.pooled) this.blockPool.release(b.pooled);
     this.blocks.length = 0;
     this.blockPool.dispose();
   }
