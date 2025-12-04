@@ -80,7 +80,7 @@ export class LevelOne extends GameScene {
       "Objective: Collect all 3 bats to break the barricade.",
     );
     this.ui.showTopRight(
-      "Controls:\n- WASD: Move\n- Mouse: Look\n- Left Click: Interact / Pick Up\n- E: Open Door",
+      "Controls:\n- Left Joystick: Move\n- Right Joystick: Look\n- Left Click/Tap: Interact / Pick Up\n- E: Open Door (keyboard)",
     );
   }
 
@@ -315,20 +315,27 @@ export class LevelOne extends GameScene {
   }
 
   private setupInteractions() {
-    // Mouse look + WASD already handled by initPlayerController
-    globalThis.addEventListener("pointermove", (event: MouseEvent) => {
-      this.yaw -= event.movementX * this.sensitivity;
-      this.pitch -= event.movementY * this.sensitivity;
-      this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
-      this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
-
-      const coords = this.inputManager.getNormalizedMousePosition();
-      this.raycastUpdateMarker(coords);
+    globalThis.addEventListener("pointermove", (e) => {
+      const pe = e as PointerEvent;
+      // Only update marker if not touching joystick
+      if (!this.inputManager.isTouchOnJoystick(pe.clientX, pe.clientY)) {
+        const coords = this.inputManager.getNormalizedMousePosition();
+        this.raycastUpdateMarker(coords);
+      }
     });
 
     globalThis.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      const coords = this.inputManager.getNormalizedMousePosition();
+      const pe = e as PointerEvent;
+      if (pe.button !== 0) return;
+
+      // If touching joystick, don't interact with world
+      if (this.inputManager.isTouchOnJoystick(pe.clientX, pe.clientY)) {
+        return;
+      }
+
+      // For touch: place cursor at touch point, then interact
+      const coords = this.inputManager.getLastTouchPosition();
+      this.raycastUpdateMarker(coords);
       this.handleLeftClick(coords);
     });
   }

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 import { LevelOne } from "./LevelOne.ts";
+import "./style.css";
 
 // 1. Wait for Ammo to initialize
 import("ammo.js").then((AmmoModule: unknown) => {
