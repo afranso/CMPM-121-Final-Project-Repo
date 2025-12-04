@@ -238,13 +238,26 @@ export class LevelOne extends GameScene {
   }
 
   private setupInteractions() {
-    globalThis.addEventListener("pointermove", (_e) => {
-      const coords = this.inputManager.getNormalizedMousePosition();
-      this.raycastUpdateMarker(coords);
+    globalThis.addEventListener("pointermove", (e) => {
+      const pe = e as PointerEvent;
+      // Only update marker if not touching joystick
+      if (!this.inputManager.isTouchOnJoystick(pe.clientX, pe.clientY)) {
+        const coords = this.inputManager.getNormalizedMousePosition();
+        this.raycastUpdateMarker(coords);
+      }
     });
     globalThis.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      const coords = this.inputManager.getNormalizedMousePosition();
+      const pe = e as PointerEvent;
+      if (pe.button !== 0) return;
+
+      // If touching joystick, don't interact with world
+      if (this.inputManager.isTouchOnJoystick(pe.clientX, pe.clientY)) {
+        return;
+      }
+
+      // For touch: place cursor at touch point, then interact
+      const coords = this.inputManager.getLastTouchPosition();
+      this.raycastUpdateMarker(coords);
       this.handleLeftClick(coords);
     });
   }

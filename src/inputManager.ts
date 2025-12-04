@@ -81,6 +81,12 @@ class VirtualJoystick {
     return this.value.clone();
   }
 
+  public isPointInside(clientX: number, clientY: number): boolean {
+    const rect = this.base.getBoundingClientRect();
+    return clientX >= rect.left && clientX <= rect.right &&
+      clientY >= rect.top && clientY <= rect.bottom;
+  }
+
   public dispose() {
     this.container.remove();
   }
@@ -91,6 +97,7 @@ export class InputManager {
   private mouseDelta = new THREE.Vector2();
   private _isRightMouseDown = false;
   private _mousePosition = new THREE.Vector2();
+  private _lastTouchPosition = new THREE.Vector2();
 
   private readonly leftJoystick = new VirtualJoystick("left");
   private readonly rightJoystick = new VirtualJoystick("right");
@@ -119,12 +126,24 @@ export class InputManager {
         // Track raw position for raycasting
         this._mousePosition.x = (me.clientX / globalThis.innerWidth) * 2 - 1;
         this._mousePosition.y = -(me.clientY / globalThis.innerHeight) * 2 + 1;
+        this._lastTouchPosition.set(
+          this._mousePosition.x,
+          this._mousePosition.y,
+        );
 
         // Track delta for camera movement
         if (this._isRightMouseDown) {
           this.mouseDelta.x += me.movementX;
           this.mouseDelta.y += me.movementY;
         }
+      },
+      pointerdown: (e: Event) => {
+        const pe = e as PointerEvent;
+        // Track touch position for interactions
+        this._lastTouchPosition.x = (pe.clientX / globalThis.innerWidth) * 2 -
+          1;
+        this._lastTouchPosition.y = -(pe.clientY / globalThis.innerHeight) * 2 +
+          1;
       },
       contextmenu: (e: Event) => (e as MouseEvent).preventDefault(),
     };
@@ -197,5 +216,16 @@ export class InputManager {
   public clear() {
     this.keys.clear();
     this.mouseDelta.set(0, 0);
+  }
+
+  // Check if a screen coordinate is within joystick bounds
+  public isTouchOnJoystick(clientX: number, clientY: number): boolean {
+    return this.leftJoystick.isPointInside(clientX, clientY) ||
+      this.rightJoystick.isPointInside(clientX, clientY);
+  }
+
+  // Get the last touch/pointer position for cursor placement
+  public getLastTouchPosition(): THREE.Vector2 {
+    return this._lastTouchPosition.clone();
   }
 }
