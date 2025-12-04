@@ -11,32 +11,13 @@ class VirtualJoystick {
 
   constructor(position: "left" | "right") {
     this.container = document.createElement("div");
-    this.container.style.cssText = `
-      position: fixed; inset: 0; pointer-events: none; z-index: 30;
-      display: flex; justify-content: ${
-      position === "left" ? "flex-start" : "flex-end"
-    };
-      align-items: flex-end; padding: 24px;
-    `;
+    this.container.className = `joystick-container ${position}`;
 
     this.base = document.createElement("div");
-    this.base.style.cssText = `
-      width: ${this.radius * 2}px; height: ${this.radius * 2}px;
-      border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
-      background: rgba(0,0,0,0.35);
-      position: relative; pointer-events: auto; touch-action: none;
-      box-shadow: 0 0 16px rgba(0,0,0,0.45);
-    `;
+    this.base.className = "joystick-base";
 
     this.knob = document.createElement("div");
-    this.knob.style.cssText = `
-      width: ${this.radius}px; height: ${this.radius}px;
-      border-radius: 50%; background: rgba(255,255,255,0.3);
-      position: absolute; left: ${this.radius}px; top: ${this.radius}px;
-      transform: translate(-50%, -50%);
-      border: 2px solid rgba(255,255,255,0.6);
-      box-shadow: inset 0 0 12px rgba(0,0,0,0.35);
-    `;
+    this.knob.className = "joystick-knob";
 
     this.base.appendChild(this.knob);
     this.container.appendChild(this.base);

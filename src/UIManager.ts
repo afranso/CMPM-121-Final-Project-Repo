@@ -12,45 +12,22 @@ export class UIManager {
 
   constructor() {
     this.overlay = document.createElement("div");
-    this.overlay.style.cssText = `
-      position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-      display: flex; align-items: flex-start; justify-content: center;
-      pointer-events: none; z-index: 10;
-    `;
+    this.overlay.className = "ui-overlay";
 
     this.messageBox = document.createElement("div");
-    this.messageBox.style.cssText = `
-      margin-top: 10vh; padding: 24px 36px; background: rgba(0,0,0,0.8);
-      color: white; font-family: sans-serif; font-size: 28px;
-      border-radius: 8px; display: none;
-    `;
+    this.messageBox.className = "ui-message";
 
     this.inventoryBox = document.createElement("div");
-    this.inventoryBox.style.cssText = `
-      position: fixed; right: 20px; bottom: 20px; padding: 10px;
-      background: rgba(0,0,0,0.6); color: white; border-radius: 8px;
-      font-family: sans-serif; font-size: 18px; min-width: 150px;
-      text-align: center; z-index: 10;
-    `;
+    this.inventoryBox.className = "ui-inventory";
 
     // NEW — TOP LEFT OBJECTIVE TEXT
     this.topLeftBox = document.createElement("div");
-    this.topLeftBox.style.cssText = `
-      position: fixed; left: 20px; top: 20px; padding: 10px 14px;
-      background: rgba(0,0,0,0.5); color: white; border-radius: 6px;
-      font-family: sans-serif; font-size: 18px;
-      white-space: pre-line; z-index: 10;
-    `;
+    this.topLeftBox.className = "ui-top-left";
     this.topLeftBox.textContent = "";
 
     // NEW — TOP RIGHT CONTROL TEXT
     this.topRightBox = document.createElement("div");
-    this.topRightBox.style.cssText = `
-      position: fixed; right: 20px; top: 20px; padding: 10px 14px;
-      background: rgba(0,0,0,0.5); color: white; border-radius: 6px;
-      font-family: sans-serif; font-size: 18px;
-      white-space: pre-line; text-align: right; z-index: 10;
-    `;
+    this.topRightBox.className = "ui-top-right";
     this.topRightBox.textContent = "";
 
     // APPEND ALL ELEMENTS
@@ -84,7 +61,7 @@ export class UIManager {
       this.inventoryBox.innerHTML = "Inventory: (Empty)";
     } else {
       const itemStr = items
-        .map((i) => `<span style="color: yellow;">${i}</span>`)
+        .map((i) => `<span class="inventory-item">${i}</span>`)
         .join(", ");
       this.inventoryBox.innerHTML = `Inventory: [${itemStr}]`;
     }
@@ -94,12 +71,7 @@ export class UIManager {
   public setBatStrength(strength: number) {
     if (!this.batBox) {
       this.batBox = document.createElement("div");
-      this.batBox.style.cssText = `
-        position: fixed; right: 20px; bottom: 70px; padding: 10px 14px;
-        background: rgba(0,0,0,0.6); color: white; border-radius: 8px;
-        font-family: sans-serif; font-size: 18px;
-        z-index: 10; min-width: 120px; text-align: center;
-      `;
+      this.batBox.className = "ui-bat";
       document.body.appendChild(this.batBox);
     }
     this.batBox.textContent = `Bat: ${Math.floor(strength)}%`;
@@ -116,25 +88,18 @@ export class UIManager {
   public showOverlay(title: string, message: string) {
     const overlay = document.createElement("div");
     overlay.id = "game-over-overlay";
-    overlay.style.position = "absolute";
-    overlay.style.top = "0";
-    overlay.style.left = "0";
-    overlay.style.width = "100%";
-    overlay.style.height = "100%";
-    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-    overlay.style.color = "white";
-    overlay.style.display = "flex";
-    overlay.style.flexDirection = "column";
-    overlay.style.justifyContent = "center";
-    overlay.style.alignItems = "center";
-    overlay.style.fontSize = "32px";
-    overlay.style.zIndex = "1000";
-    overlay.style.textAlign = "center";
-    overlay.innerHTML = `
-      <h1>${title}</h1>
-      <p style="font-size: 24px; color: #aaa;">${message}</p>
-      <p style="font-size: 18px; color: #888;">Refresh to play again</p>
-    `;
+
+    const h1 = document.createElement("h1");
+    h1.textContent = title;
+
+    const pMessage = document.createElement("p");
+    pMessage.textContent = message;
+
+    const pSub = document.createElement("p");
+    pSub.className = "subtle";
+    pSub.textContent = "Refresh to play again";
+
+    overlay.append(h1, pMessage, pSub);
     document.body.appendChild(overlay);
   }
 }
