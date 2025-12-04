@@ -36,7 +36,7 @@ export class PlayerController {
   }
 
   private handleRotation() {
-    const delta = this.input.getMouseDelta();
+    const delta = this.input.getLookDelta();
     if (delta.lengthSq() > 0) {
       this.camera.rotation.y -= delta.x * this.ROTATION_SPEED;
       this.camera.rotation.x -= delta.y * this.ROTATION_SPEED;
@@ -50,13 +50,13 @@ export class PlayerController {
   }
 
   private handleMovement() {
-    // Calculate direction based on Camera Y rotation
-    const moveZ = this.input.getAxis("s", "w") ||
-      this.input.getAxis("ArrowDown", "ArrowUp");
-    const moveX = this.input.getAxis("d", "a") ||
-      this.input.getAxis("ArrowRight", "ArrowLeft");
+    // Calculate direction based on camera Y rotation
+    const moveVec = this.input.getMovementVector();
+    const moveX = moveVec.x;
+    const moveZ = -moveVec.y; // invert to align with existing forward sign
+    const moveStrength = Math.min(1, moveVec.length());
 
-    if (moveZ === 0 && moveX === 0) {
+    if (moveStrength < 0.05) {
       const v = this.body.getLinearVelocity();
       const dampFactor = 0.1; // stronger horizontal stop
       const tmp = this.tmpAmmoVec as unknown as {
@@ -91,7 +91,8 @@ export class PlayerController {
     this.moveDir.set(0, 0, 0)
       .addScaledVector(this.forward, -moveZ)
       .addScaledVector(this.right, moveX)
-      .normalize();
+      .normalize()
+      .multiplyScalar(moveStrength);
 
     const currentVel = this.body.getLinearVelocity();
 

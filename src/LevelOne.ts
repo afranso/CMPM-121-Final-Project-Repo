@@ -60,7 +60,7 @@ export class LevelOne extends GameScene {
       "Objective: Collect all 3 bats to break the barricade.",
     );
     this.ui.showTopRight(
-      "Controls:\n- Left Click: Interact / Pick Up\n- E: Open Door",
+      "Controls:\n- Left Joystick: Move\n- Right Joystick: Look\n- Left Click/Tap: Interact / Pick Up\n- E: Open Door (keyboard)",
     );
   }
 
