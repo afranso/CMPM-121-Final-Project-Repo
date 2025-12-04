@@ -7,7 +7,6 @@ const CONSTANTS = {
   ROOM_WIDTH: 20,
   WALL_HEIGHT: 6,
   WALL_THICKNESS: 0.5,
-  // Move door/front wall slightly forward to avoid z-fighting with back wall
   DOOR_Z: -9.5,
   KEY_POS: new THREE.Vector3(1.5, 0.2, -6),
   BUTTON_POS: new THREE.Vector3(0, 0.1, -6),
@@ -22,31 +21,47 @@ export class LevelOne extends GameScene {
   private marker!: THREE.Mesh;
   private keyMesh!: THREE.Mesh;
   private chest!: THREE.Mesh;
-  private bat!: THREE.Mesh;
+
+  // MULTIPLE bats
+  private bats: THREE.Mesh[] = [];
+  private batCount = 0; // ⭐ NEW: stacked bat count
+
+  private board!: THREE.Mesh;
   private inventory: string[] = [];
+
   private state = {
     doorOpened: false,
     chestOpened: false,
     wrongLandings: 0,
     blockSpawningEnabled: true,
+    boardBroken: false,
   };
-  private blocks: Array<
-    {
-      mesh: THREE.Mesh;
-      body: Ammo.btRigidBody;
-      pooled?: PooledBlock;
-      handled: boolean;
-    }
-  > = [];
+
+  private blocks: Array<{
+    mesh: THREE.Mesh;
+    body: Ammo.btRigidBody;
+    pooled?: PooledBlock;
+    handled: boolean;
+  }> = [];
+
   private blockPool!: BlockPool;
 
   constructor() {
     super();
     this.ui = new UIManager();
-    // Initialize block pool after physics world and scene are ready
+
     this.blockPool = new BlockPool(this.physicsWorld, this.scene, 25);
+
     this.setupLevel();
     this.setupInteractions();
+
+    // NEW HUD TEXT
+    this.ui.showTopLeft(
+      "Objective: Collect all 3 bats to break the barricade.",
+    );
+    this.ui.showTopRight(
+      "Controls:\n- Left Click: Interact / Pick Up\n- E: Open Door",
+    );
   }
 
   protected setupPlayer(): void {
@@ -59,30 +74,32 @@ export class LevelOne extends GameScene {
     );
     this.playerBody = this.playerMesh.userData.physicsBody as Ammo.btRigidBody;
     this.playerBody.setAngularFactor(new Ammo.btVector3(0, 1, 0));
-    this.playerMesh.visible = false; // use camera as visual representation
+    this.playerMesh.visible = false;
+
     this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
     this.camera.lookAt(0, 1, 0);
-
-    // Initialize PlayerController now that playerBody is ready
     this.initPlayerController();
   }
 
   private setupLevel() {
     this.createRoom(0, true);
     this.createRoom(-20, false);
+
     this.createDoor();
     this.createButton();
     this.createMarker();
     this.createKey();
     this.createChest();
-    this.createBat();
+
+    this.createBats(); // 3 bats
+    this.createBoard();
+
     const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     hemi.position.set(0, 20, 0);
     this.scene.add(hemi);
   }
 
   private createRoom(zOffset: number, hasDoor: boolean) {
-    // Floor
     this.createBody(
       { x: CONSTANTS.ROOM_WIDTH, y: 1, z: CONSTANTS.ROOM_WIDTH },
       0,
@@ -94,7 +111,6 @@ export class LevelOne extends GameScene {
     const H = CONSTANTS.WALL_HEIGHT;
     const T = CONSTANTS.WALL_THICKNESS;
 
-    // Back wall: keep for non-door rooms; remove in door room to allow passage
     if (!(hasDoor && zOffset === 0)) {
       this.createBody(
         { x: W, y: H, z: T },
@@ -103,14 +119,12 @@ export class LevelOne extends GameScene {
         CONSTANTS.COLORS.WALL,
       );
     }
-    // Left wall
     this.createBody(
       { x: T, y: H, z: W },
       0,
       new THREE.Vector3(-10 + 0.25, 3, zOffset),
       CONSTANTS.COLORS.WALL,
     );
-    // Right wall
     this.createBody(
       { x: T, y: H, z: W },
       0,
@@ -119,7 +133,6 @@ export class LevelOne extends GameScene {
     );
 
     if (hasDoor) {
-      // Front wall segments around door + above door
       this.createBody(
         { x: 9, y: 6, z: 0.5 },
         0,
@@ -196,14 +209,32 @@ export class LevelOne extends GameScene {
     this.scene.add(this.chest);
   }
 
-  private createBat() {
-    this.bat = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.1, 0.1, 2),
-      new THREE.MeshStandardMaterial({ color: 0x964B00 }),
+  private createBats() {
+    const positions = [
+      new THREE.Vector3(-2, 1, -15),
+      new THREE.Vector3(0, 1, -15),
+      new THREE.Vector3(2, 1, -15),
+    ];
+
+    positions.forEach((p) => {
+      const bat = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.1, 2),
+        new THREE.MeshStandardMaterial({ color: 0x964B00 }),
+      );
+      bat.position.copy(p);
+      this.bats.push(bat);
+      this.scene.add(bat);
+    });
+  }
+
+  private createBoard() {
+    this.board = new THREE.Mesh(
+      new THREE.BoxGeometry(3, 2, 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x775533 }),
     );
-    this.bat.position.set(0, 1, -15);
-    this.bat.visible = false;
-    this.scene.add(this.bat);
+    this.board.position.set(0, 1, -4);
+    this.board.visible = true;
+    this.scene.add(this.board);
   }
 
   private setupInteractions() {
@@ -220,43 +251,62 @@ export class LevelOne extends GameScene {
 
   private raycastUpdateMarker(coords: THREE.Vector2) {
     this.raycaster.setFromCamera(coords, this.camera);
-    // Exclude the marker itself from intersection results
-    const objectsToIntersect = this.scene.children.filter((obj) =>
-      obj !== this.marker
-    );
-    const intersects = this.raycaster.intersectObjects(objectsToIntersect);
-    if (intersects.length > 0) {
-      this.marker.position.copy(intersects[0].point).add(
+    const objects = this.scene.children.filter((obj) => obj !== this.marker);
+    const hits = this.raycaster.intersectObjects(objects);
+    if (hits.length > 0) {
+      this.marker.position.copy(hits[0].point).add(
         new THREE.Vector3(0, 0.05, 0),
       );
     }
   }
 
-  private handleLeftClick(coords: THREE.Vector2) {
-    this.raycaster.setFromCamera(coords, this.camera);
-    // Only check visible objects for intersection
-    const visibleObjects = this.scene.children.filter((obj) =>
-      (obj as THREE.Mesh).visible !== false
-    );
-    const intersects = this.raycaster.intersectObjects(visibleObjects);
-    if (intersects.length === 0) return;
+  //---------------------------------------------------------
+  //  ⭐ NEW: Can only break board once you have ALL 3 bats
+  //---------------------------------------------------------
+  private tryBreakBoard() {
+    if (!this.board.visible) return;
 
-    // Check if any intersected object is the key mesh
-    const keyIntersect = intersects.find((i) => i.object === this.keyMesh);
-    if (keyIntersect && this.keyMesh.visible) {
-      this.keyMesh.visible = false;
-      this.inventory.push("Key");
-      this.ui.updateInventory(this.inventory);
-      this.ui.showMessage("Picked up Key!");
+    if (this.batCount < 3) {
+      this.ui.showMessage("You need all 3 bats to break the board!");
       return;
     }
 
-    // Check if any intersected object is the chest
-    const chestIntersect = intersects.find((i) => i.object === this.chest);
-    if (chestIntersect) {
+    const dist = this.playerMesh.position.distanceTo(this.board.position);
+    if (dist > 3) {
+      this.ui.showMessage("Move closer to hit the board.");
+      return;
+    }
+
+    // Break the board instantly when you have all 3 bats
+    this.board.visible = false;
+    this.state.boardBroken = true;
+    this.ui.showMessage("You smashed the board!", 2000);
+    setTimeout(() => this.gameOver(), 1000);
+  }
+
+  private handleLeftClick(coords: THREE.Vector2) {
+    this.raycaster.setFromCamera(coords, this.camera);
+    const visible = this.scene.children.filter((obj) =>
+      (obj as THREE.Mesh).visible !== false
+    );
+    const intersects = this.raycaster.intersectObjects(visible);
+    if (intersects.length === 0) return;
+
+    // PICK UP KEY
+    if (intersects.find((i) => i.object === this.keyMesh)) {
+      if (this.keyMesh.visible) {
+        this.keyMesh.visible = false;
+        this.inventory.push("Key");
+        this.ui.updateInventory(this.inventory);
+        this.ui.showMessage("Picked up Key!");
+      }
+      return;
+    }
+
+    // CHEST
+    if (intersects.find((i) => i.object === this.chest)) {
       if (this.inventory.includes("Key")) {
         (this.chest.material as THREE.MeshStandardMaterial).color.set(0xD2B48C);
-        this.bat.visible = true;
         this.state.chestOpened = true;
         this.ui.showMessage("Chest Opened!");
       } else {
@@ -265,19 +315,34 @@ export class LevelOne extends GameScene {
       return;
     }
 
-    // Check if any intersected object is the bat
-    const batIntersect = intersects.find((i) => i.object === this.bat);
-    if (batIntersect && this.bat.visible) {
-      this.bat.visible = false;
-      this.inventory.push("Bat");
-      this.ui.updateInventory(this.inventory);
-      this.ui.showMessage("Bat Equipped!", 2000);
-      // Trigger Game Over
-      setTimeout(() => this.gameOver(), 500);
+    //---------------------------------------------------------
+    // PICK UP BATS (stacking)
+    //---------------------------------------------------------
+    for (const bat of this.bats) {
+      if (intersects.find((i) => i.object === bat) && bat.visible) {
+        bat.visible = false;
+        this.batCount++;
+
+        // Update inventory text to: "Bat ×3"
+        const batLabel = `Bat ×${this.batCount}`;
+        this.inventory = this.inventory.filter((i) => !i.startsWith("Bat"));
+        this.inventory.push(batLabel);
+
+        this.ui.updateInventory(this.inventory);
+        this.ui.showMessage(`Picked up Bat (${this.batCount}/3)`);
+        return;
+      }
+    }
+
+    //---------------------------------------------------------
+    // HIT BOARD (only works once you have all 3 bats)
+    //---------------------------------------------------------
+    if (intersects.find((i) => i.object === this.board) && this.batCount > 0) {
+      this.tryBreakBoard();
       return;
     }
 
-    // Only allow block spawning if enabled
+    // BLOCK PUZZLE
     if (this.state.blockSpawningEnabled) {
       this.spawnBlock(this.marker.position);
     }
@@ -294,7 +359,6 @@ export class LevelOne extends GameScene {
       this.ui.showMessage("Block pool exhausted.");
       return;
     }
-    // Register with GameScene tracking if first time
     if (!this.allBodies.some((po) => po.mesh === pooled.mesh)) {
       this.allBodies.push({ mesh: pooled.mesh, body: pooled.body });
     }
@@ -313,19 +377,14 @@ export class LevelOne extends GameScene {
     }, 6000);
   }
 
-  private releaseBlock(
-    block: {
-      mesh: THREE.Mesh;
-      body: Ammo.btRigidBody;
-      pooled?: PooledBlock;
-      handled: boolean;
-    },
-  ) {
-    // Release back to pool
+  private releaseBlock(block: {
+    mesh: THREE.Mesh;
+    body: Ammo.btRigidBody;
+    pooled?: PooledBlock;
+    handled: boolean;
+  }) {
     if (block.pooled) this.blockPool.release(block.pooled);
-    // Remove from active puzzle tracking
     this.blocks = this.blocks.filter((b) => b !== block);
-    // Remove from dynamic update list (leave in allBodies for disposal lifecycle)
     this.physicsObjects = this.physicsObjects.filter((po) =>
       po.mesh !== block.mesh
     );
@@ -373,21 +432,16 @@ export class LevelOne extends GameScene {
 
   private resetLevel() {
     this.ui.showMessage("3 Misses! Level Reset!", 3000);
-
-    // Reset state
     this.state.wrongLandings = 0;
     this.state.blockSpawningEnabled = true;
 
-    // Clear all blocks
     for (const b of this.blocks) {
       if (b.pooled) this.blockPool.release(b.pooled);
     }
     this.blocks.length = 0;
 
-    // Hide key
     this.keyMesh.visible = false;
 
-    // Reset player position
     const startPos = new THREE.Vector3(0, 0.9, 5);
     const transform = new Ammo.btTransform();
     transform.setIdentity();
@@ -399,11 +453,8 @@ export class LevelOne extends GameScene {
     this.camera.lookAt(0, 1, 0);
   }
 
-  private addDebugHelpers(): void {}
-
   public override dispose() {
     super.dispose();
-    // Release any active blocks
     for (const b of this.blocks) {
       if (b.pooled) this.blockPool.release(b.pooled);
     }
@@ -412,7 +463,7 @@ export class LevelOne extends GameScene {
   }
 
   private gameOver() {
-    this.ui.showOverlay("🎉 LEVEL 1 COMPLETE 🎉", "You got the Bat!");
+    this.ui.showOverlay("🎉 LEVEL 1 COMPLETE 🎉", "You smashed the board!");
     this.state.blockSpawningEnabled = false;
     this.inputManager.clear();
   }
