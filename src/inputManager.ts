@@ -228,11 +228,11 @@ class TouchControls {
   public getLookDelta(): THREE.Vector2 {
     const delta = new THREE.Vector2();
 
-    // Right joystick for look
+    // Right joystick for look (reduced sensitivity, fixed Y inversion)
     const rightJoy = this.rightJoystick.getValue();
     if (rightJoy.lengthSq() > 0) {
-      delta.x += rightJoy.x * 25;
-      delta.y += rightJoy.y * 25;
+      delta.x += rightJoy.x * 10;
+      delta.y -= rightJoy.y * 10; // Negate Y for correct up/down
     }
 
     // Swipe for look
