@@ -1,3 +1,20 @@
+/* Theme variables */
+:root {
+  --theme-ui-bg: rgba(0, 0, 0, 0.8);
+  --theme-ui-bg-light: rgba(0, 0, 0, 0.6);
+  --theme-ui-bg-lighter: rgba(0, 0, 0, 0.5);
+  --theme-text: #fff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --theme-ui-bg: rgba(255, 255, 255, 0.9);
+    --theme-ui-bg-light: rgba(255, 255, 255, 0.85);
+    --theme-ui-bg-lighter: rgba(255, 255, 255, 0.8);
+    --theme-text: #000;
+  }
+}
+
 /* Generic icon styling (unused by main UI but retained) */
 .icon {
   width: 64px;
@@ -19,8 +36,8 @@
 .ui-message {
   margin-top: 10vh;
   padding: 24px 36px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
+  background: var(--theme-ui-bg);
+  color: var(--theme-text);
   font-family: sans-serif;
   font-size: 28px;
   border-radius: 8px;
@@ -32,8 +49,8 @@
   right: 20px;
   bottom: 20px;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: var(--theme-ui-bg-light);
+  color: var(--theme-text);
   border-radius: 8px;
   font-family: sans-serif;
   font-size: 18px;
@@ -51,8 +68,8 @@
   position: fixed;
   top: 20px;
   padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
+  background: var(--theme-ui-bg-lighter);
+  color: var(--theme-text);
   border-radius: 6px;
   font-family: sans-serif;
   font-size: 18px;
@@ -74,8 +91,8 @@
   right: 20px;
   bottom: 70px;
   padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: var(--theme-ui-bg-light);
+  color: var(--theme-text);
   border-radius: 8px;
   font-family: sans-serif;
   font-size: 18px;
