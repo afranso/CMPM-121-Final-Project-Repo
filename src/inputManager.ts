@@ -98,6 +98,10 @@ export class InputManager {
   private _isRightMouseDown = false;
   private _mousePosition = new THREE.Vector2();
   private _lastTouchPosition = new THREE.Vector2();
+  private touchDelta = new THREE.Vector2();
+  private _activeTouchPointerId: number | null = null;
+  private _lastTouchX = 0;
+  private _lastTouchY = 0;
 
   private readonly leftJoystick = new VirtualJoystick("left");
   private readonly rightJoystick = new VirtualJoystick("right");
@@ -144,12 +148,43 @@ export class InputManager {
         if (!this.isTouchOnJoystick(pe.clientX, pe.clientY)) {
           // Store the touch point for later use
           this._lastTouchDown = { clientX: pe.clientX, clientY: pe.clientY };
+          // Start tracking this touch for swipe/look
+          this._activeTouchPointerId = pe.pointerId;
+          this._lastTouchX = pe.clientX;
+          this._lastTouchY = pe.clientY;
         }
         // Track touch position for interactions
         this._lastTouchPosition.x = (pe.clientX / globalThis.innerWidth) * 2 -
           1;
         this._lastTouchPosition.y = -(pe.clientY / globalThis.innerHeight) * 2 +
           1;
+      },
+      pointermove: (e: Event) => {
+        const pe = e as PointerEvent;
+        // Track touch swipe for camera look if pointer is not on joystick
+        if (
+          this._activeTouchPointerId === pe.pointerId &&
+          !this.isTouchOnJoystick(pe.clientX, pe.clientY)
+        ) {
+          const deltaX = pe.clientX - this._lastTouchX;
+          const deltaY = pe.clientY - this._lastTouchY;
+          this.touchDelta.x += deltaX;
+          this.touchDelta.y += deltaY;
+          this._lastTouchX = pe.clientX;
+          this._lastTouchY = pe.clientY;
+        }
+      },
+      pointerup: (e: Event) => {
+        const pe = e as PointerEvent;
+        if (this._activeTouchPointerId === pe.pointerId) {
+          this._activeTouchPointerId = null;
+        }
+      },
+      pointercancel: (e: Event) => {
+        const pe = e as PointerEvent;
+        if (this._activeTouchPointerId === pe.pointerId) {
+          this._activeTouchPointerId = null;
+        }
       },
       contextmenu: (e: Event) => (e as MouseEvent).preventDefault(),
     };
@@ -174,6 +209,11 @@ export class InputManager {
   public getLookDelta(): THREE.Vector2 {
     const delta = this.mouseDelta.clone();
     this.mouseDelta.set(0, 0); // Reset after reading
+
+    // Add touch swipe contribution for look
+    delta.x += this.touchDelta.x;
+    delta.y += this.touchDelta.y;
+    this.touchDelta.set(0, 0); // Reset after reading
 
     // Add right joystick contribution for touch look.
     const joy = this.rightJoystick.getValue();
