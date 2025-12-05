@@ -38,14 +38,11 @@ export class PlayerController {
   private handleRotation() {
     const delta = this.input.getLookDelta();
     if (delta.lengthSq() > 0) {
+      // Horizontal swipe rotates the camera left/right
       this.camera.rotation.y -= delta.x * this.ROTATION_SPEED;
-      this.camera.rotation.x -= delta.y * this.ROTATION_SPEED;
 
-      // Clamp vertical look
-      this.camera.rotation.x = Math.max(
-        -Math.PI / 2,
-        Math.min(Math.PI / 2, this.camera.rotation.x),
-      );
+      // Vertical swipe pans the camera up/down (move position, not rotation)
+      this.camera.position.y += delta.y * 0.01;
     }
   }
 

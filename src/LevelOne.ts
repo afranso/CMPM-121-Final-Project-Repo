@@ -336,8 +336,34 @@ export class LevelOne extends GameScene {
     });
     globalThis.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
-      const coords = this.inputManager.getNormalizedMousePosition();
-      this.handleLeftClick(coords);
+
+      // For touch controls: place cursor at touch point first
+      const touchDown = this.inputManager.getLastTouchDownPoint();
+      if (
+        touchDown &&
+        this.inputManager.isTouchOnJoystick(
+            touchDown.clientX,
+            touchDown.clientY,
+          ) === false
+      ) {
+        // This is a touch interaction (not on joystick)
+        // Position the marker at the touch point
+        const touchCoords = new THREE.Vector2(
+          (touchDown.clientX / globalThis.innerWidth) * 2 - 1,
+          -(touchDown.clientY / globalThis.innerHeight) * 2 + 1,
+        );
+        this.raycastUpdateMarker(touchCoords);
+
+        // Now perform the interaction at the marker's new position
+        this.handleLeftClick(touchCoords);
+
+        // Clear the touch point after handling
+        this.inputManager.clearTouchDownPoint();
+      } else {
+        // Desktop mouse click or joystick - use current mouse position
+        const coords = this.inputManager.getNormalizedMousePosition();
+        this.handleLeftClick(coords);
+      }
     });
   }
 
