@@ -518,7 +518,13 @@ export class LevelOne extends GameScene {
     this.blocks.forEach((b) => {
       if (b.handled) return;
       const vel = b.body.getLinearVelocity();
-      if (Math.abs(vel.y()) < 0.1 && Math.abs(vel.x()) < 0.1) {
+      // Check all velocity components to ensure block has truly settled
+      const isSettled = Math.abs(vel.x()) < 0.1 &&
+        Math.abs(vel.y()) < 0.1 &&
+        Math.abs(vel.z()) < 0.1;
+
+      if (isSettled && b.mesh.position.y < 2.0) {
+        // Block has settled on the ground
         b.handled = true;
         if (b.mesh.position.distanceTo(CONSTANTS.BUTTON_POS) < 1.0) {
           this.keyMesh.visible = true;
