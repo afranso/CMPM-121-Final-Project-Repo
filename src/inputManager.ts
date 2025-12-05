@@ -5,9 +5,11 @@ class VirtualJoystick {
   private container: HTMLDivElement;
   private base: HTMLDivElement;
   private knob: HTMLDivElement;
-  private pointerId: number | null = null;
+  private touchId: number | null = null;
   private value = new THREE.Vector2();
-  private readonly radius = 60; // visual radius (px)
+  private readonly radius = 60;
+  private startX = 0;
+  private startY = 0;
 
   constructor(position: "left" | "right") {
     this.container = document.createElement("div");
@@ -23,52 +25,71 @@ class VirtualJoystick {
     this.container.appendChild(this.base);
     document.body.appendChild(this.container);
 
-    // Prevent joystick touches from interacting with the world.
-    const stopEvent = (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    this.base.addEventListener("pointerdown", (e) => {
-      if (this.pointerId !== null) return;
-      this.pointerId = (e as PointerEvent).pointerId;
-      this.base.setPointerCapture(this.pointerId);
-      stopEvent(e);
-      this.updateValue(e as PointerEvent);
-    });
-
-    this.base.addEventListener("pointermove", (e) => {
-      if (this.pointerId !== (e as PointerEvent).pointerId) return;
-      stopEvent(e);
-      this.updateValue(e as PointerEvent);
-    });
-
-    const reset = (e: Event) => {
-      const pe = e as PointerEvent;
-      if (this.pointerId !== pe.pointerId) return;
-      stopEvent(e);
-      this.pointerId = null;
-      this.value.set(0, 0);
-      this.knob.style.left = `${this.radius}px`;
-      this.knob.style.top = `${this.radius}px`;
-    };
-
-    this.base.addEventListener("pointerup", reset);
-    this.base.addEventListener("pointercancel", reset);
-    this.base.addEventListener("pointerleave", reset);
+    this.setupTouchListeners();
   }
 
-  private updateValue(e: PointerEvent) {
-    const rect = this.base.getBoundingClientRect();
-    const dx = e.clientX - (rect.left + rect.width / 2);
-    const dy = e.clientY - (rect.top + rect.height / 2);
+  private setupTouchListeners() {
+    // Use touchstart/touchmove/touchend instead of pointer events to avoid conflicts with mouse
+    this.base.addEventListener("touchstart", (e: TouchEvent) => {
+      if (this.touchId !== null || e.touches.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
 
-    // Normalize to -1..1 range, invert Y so up is positive.
+      const touch = e.touches[0];
+      this.touchId = touch.identifier;
+      const rect = this.base.getBoundingClientRect();
+      this.startX = rect.left + rect.width / 2;
+      this.startY = rect.top + rect.height / 2;
+      this.updateValue(touch.clientX, touch.clientY);
+    });
+
+    this.base.addEventListener("touchmove", (e: TouchEvent) => {
+      if (this.touchId === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        if (touch.identifier === this.touchId) {
+          this.updateValue(touch.clientX, touch.clientY);
+          break;
+        }
+      }
+    });
+
+    const endHandler = (e: TouchEvent) => {
+      if (this.touchId === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Check if our touch ended
+      let touchEnded = true;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === this.touchId) {
+          touchEnded = false;
+          break;
+        }
+      }
+
+      if (touchEnded) {
+        this.reset();
+      }
+    };
+
+    this.base.addEventListener("touchend", endHandler);
+    this.base.addEventListener("touchcancel", endHandler);
+  }
+
+  private updateValue(clientX: number, clientY: number) {
+    const dx = clientX - this.startX;
+    const dy = clientY - this.startY;
+
+    // Normalize to -1..1 range, invert Y so up is positive
     const nx = THREE.MathUtils.clamp(dx / this.radius, -1, 1);
     const ny = THREE.MathUtils.clamp(-dy / this.radius, -1, 1);
     this.value.set(nx, ny);
 
-    // Move knob visually within circle bounds.
+    // Move knob visually
     const len = Math.min(1, Math.hypot(nx, ny));
     const angle = Math.atan2(ny, nx);
     const knobX = this.radius + Math.cos(angle) * this.radius * len;
@@ -77,197 +98,241 @@ class VirtualJoystick {
     this.knob.style.top = `${knobY}px`;
   }
 
+  private reset() {
+    this.touchId = null;
+    this.value.set(0, 0);
+    this.knob.style.left = `${this.radius}px`;
+    this.knob.style.top = `${this.radius}px`;
+  }
+
   public getValue(): THREE.Vector2 {
     return this.value.clone();
   }
 
-  public isPointInside(clientX: number, clientY: number): boolean {
-    const rect = this.base.getBoundingClientRect();
-    return clientX >= rect.left && clientX <= rect.right &&
-      clientY >= rect.top && clientY <= rect.bottom;
+  public isActive(): boolean {
+    return this.touchId !== null;
   }
 
   public dispose() {
+    this.reset();
     this.container.remove();
   }
 }
 
-export class InputManager {
-  private keys: Set<string> = new Set();
-  private mouseDelta = new THREE.Vector2();
-  private _mousePosition = new THREE.Vector2();
-  private _lastMousePosition = new THREE.Vector2();
-  private _lastTouchPosition = new THREE.Vector2();
-  private touchDelta = new THREE.Vector2();
-  private _activeTouchPointerId: number | null = null;
-  private _lastTouchX = 0;
-  private _lastTouchY = 0;
-
-  private interactRequested = false;
-
-  private readonly leftJoystick = new VirtualJoystick("left");
-  private readonly rightJoystick = new VirtualJoystick("right");
-
-  private _handlers: Record<string, (e: Event) => void> = {};
-  private _lastTouchDown: { clientX: number; clientY: number } | null = null;
+// Touch control manager - completely separate from mouse/keyboard
+class TouchControls {
+  private leftJoystick: VirtualJoystick;
+  private rightJoystick: VirtualJoystick;
+  private swipeTouchId: number | null = null;
+  private swipeStartX = 0;
+  private swipeStartY = 0;
+  private swipeDelta = new THREE.Vector2();
+  private lastTouchPos = new THREE.Vector2();
 
   constructor() {
-    this.setupHandlers();
-    this.attach();
+    this.leftJoystick = new VirtualJoystick("left");
+    this.rightJoystick = new VirtualJoystick("right");
+    this.setupSwipeListeners();
   }
 
-  private setupHandlers() {
-    this._handlers = {
-      keydown: (e: Event) => {
-        const key = (e as KeyboardEvent).key;
-        this.keys.add(key);
-        // Spacebar triggers interaction for keyboard play.
-        if (key === " " || key === "Spacebar" || key === "Space") {
-          this.queueInteract();
-        }
-        // ESC unlocks pointer for menu access
-        if (key === "Escape") {
-          document.exitPointerLock?.();
-        }
-      },
-      keyup: (e: Event) => this.keys.delete((e as KeyboardEvent).key),
-      mousedown: (_e: Event) => {
-        // Request pointer lock for FPS mouse look on desktop (any button)
-        if (!document.pointerLockElement) {
-          document.body.requestPointerLock?.();
-        }
-      },
-      mousemove: (e: Event) => {
-        const me = e as MouseEvent;
-        // Calculate position-based delta as fallback (when pointer lock unavailable)
-        const newX = (me.clientX / globalThis.innerWidth) * 2 - 1;
-        const newY = -(me.clientY / globalThis.innerHeight) * 2 + 1;
-        const posDeltaX = newX - this._lastMousePosition.x;
-        const posDeltaY = newY - this._lastMousePosition.y;
-        this._lastMousePosition.set(newX, newY);
+  private setupSwipeListeners() {
+    // Handle touch swipes outside joysticks for camera control
+    document.addEventListener("touchstart", (e: TouchEvent) => {
+      if (this.swipeTouchId !== null) return;
 
-        // Store normalized position for raycasting
-        this._mousePosition.set(newX, newY);
-        this._lastTouchPosition.set(newX, newY);
+      // Check if touch is on a joystick
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        if (this.isTouchOnJoystick(touch.clientX, touch.clientY)) {
+          continue;
+        }
 
-        // Track delta for FPS camera: use movementX/Y when available (pointer locked),
-        // otherwise use position delta as fallback.
-        if (me.movementX !== 0 || me.movementY !== 0) {
-          // Pointer is locked, use movement delta
-          this.mouseDelta.x += me.movementX;
-          this.mouseDelta.y += me.movementY;
-        } else if (posDeltaX !== 0 || posDeltaY !== 0) {
-          // Fallback: use position-based delta (scale to match sensitivity)
-          this.mouseDelta.x += posDeltaX * 100;
-          this.mouseDelta.y += posDeltaY * 100;
+        // Use this touch for swipe
+        this.swipeTouchId = touch.identifier;
+        this.swipeStartX = touch.clientX;
+        this.swipeStartY = touch.clientY;
+        this.lastTouchPos.x = (touch.clientX / globalThis.innerWidth) * 2 - 1;
+        this.lastTouchPos.y = -(touch.clientY / globalThis.innerHeight) * 2 + 1;
+        break;
+      }
+    });
+
+    document.addEventListener("touchmove", (e: TouchEvent) => {
+      if (this.swipeTouchId === null) return;
+
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        if (touch.identifier === this.swipeTouchId) {
+          const deltaX = touch.clientX - this.swipeStartX;
+          const deltaY = touch.clientY - this.swipeStartY;
+          this.swipeDelta.x += deltaX;
+          this.swipeDelta.y += deltaY;
+          this.swipeStartX = touch.clientX;
+          this.swipeStartY = touch.clientY;
+          break;
         }
-      },
-      pointerdown: (e: Event) => {
-        const pe = e as PointerEvent;
-        // Check if this is a touch or joystick event
-        if (!this.isTouchOnJoystick(pe.clientX, pe.clientY)) {
-          // Store the touch point for later use
-          this._lastTouchDown = { clientX: pe.clientX, clientY: pe.clientY };
-          // Start tracking this touch for swipe/look
-          this._activeTouchPointerId = pe.pointerId;
-          this._lastTouchX = pe.clientX;
-          this._lastTouchY = pe.clientY;
+      }
+    });
+
+    const endSwipe = (e: TouchEvent) => {
+      if (this.swipeTouchId === null) return;
+
+      let touchEnded = true;
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === this.swipeTouchId) {
+          touchEnded = false;
+          break;
         }
-        // Track touch position for interactions
-        this._lastTouchPosition.x = (pe.clientX / globalThis.innerWidth) * 2 -
-          1;
-        this._lastTouchPosition.y = -(pe.clientY / globalThis.innerHeight) * 2 +
-          1;
-      },
-      pointermove: (e: Event) => {
-        const pe = e as PointerEvent;
-        // Track touch swipe for camera look if pointer is not on joystick
-        if (
-          this._activeTouchPointerId === pe.pointerId &&
-          !this.isTouchOnJoystick(pe.clientX, pe.clientY)
-        ) {
-          const deltaX = pe.clientX - this._lastTouchX;
-          const deltaY = pe.clientY - this._lastTouchY;
-          this.touchDelta.x += deltaX;
-          this.touchDelta.y += deltaY;
-          this._lastTouchX = pe.clientX;
-          this._lastTouchY = pe.clientY;
-        }
-      },
-      pointerup: (e: Event) => {
-        const pe = e as PointerEvent;
-        if (this._activeTouchPointerId === pe.pointerId) {
-          this._activeTouchPointerId = null;
-        }
-      },
-      pointercancel: (e: Event) => {
-        const pe = e as PointerEvent;
-        if (this._activeTouchPointerId === pe.pointerId) {
-          this._activeTouchPointerId = null;
-        }
-      },
-      contextmenu: (e: Event) => (e as MouseEvent).preventDefault(),
+      }
+
+      if (touchEnded) {
+        this.swipeTouchId = null;
+      }
     };
+
+    document.addEventListener("touchend", endSwipe);
+    document.addEventListener("touchcancel", endSwipe);
   }
 
-  private attach() {
-    Object.entries(this._handlers).forEach(([evt, handler]) => {
-      globalThis.addEventListener(evt, handler);
-    });
-  }
+  private isTouchOnJoystick(x: number, y: number): boolean {
+    // Simple bounds check - joysticks are in bottom corners
+    const joystickSize = 120;
+    const padding = 24;
 
-  public dispose() {
-    Object.entries(this._handlers).forEach(([evt, handler]) => {
-      globalThis.removeEventListener(evt, handler);
-    });
-    this.leftJoystick.dispose();
-    this.rightJoystick.dispose();
-  }
-
-  // --- Public API ---
-
-  public getLookDelta(): THREE.Vector2 {
-    const delta = this.mouseDelta.clone();
-    this.mouseDelta.set(0, 0); // Reset after reading
-
-    // Add touch swipe contribution for look
-    delta.x += this.touchDelta.x;
-    delta.y += this.touchDelta.y;
-    this.touchDelta.set(0, 0); // Reset after reading
-
-    // Add right joystick contribution for touch look.
-    const joy = this.rightJoystick.getValue();
-    if (joy.lengthSq() > 0) {
-      delta.x += joy.x * 25; // scale to match mouse sensitivity
-      delta.y += joy.y * 25;
+    // Left joystick: bottom-left
+    if (
+      x >= padding && x <= padding + joystickSize &&
+      y >= globalThis.innerHeight - padding - joystickSize &&
+      y <= globalThis.innerHeight - padding
+    ) {
+      return true;
     }
-    return delta;
-  }
 
-  public getNormalizedMousePosition(): THREE.Vector2 {
-    return this._mousePosition.clone();
-  }
+    // Right joystick: bottom-right
+    if (
+      x >= globalThis.innerWidth - padding - joystickSize &&
+      x <= globalThis.innerWidth - padding &&
+      y >= globalThis.innerHeight - padding - joystickSize &&
+      y <= globalThis.innerHeight - padding
+    ) {
+      return true;
+    }
 
-  public isKeyDown(key: string): boolean {
-    return this.keys.has(key);
-  }
-
-  // Helper to get -1 to 1 value for movement axes
-  public getAxis(positiveKey: string, negativeKey: string): number {
-    return (this.keys.has(positiveKey) ? 1 : 0) -
-      (this.keys.has(negativeKey) ? 1 : 0);
+    return false;
   }
 
   public getMovementVector(): THREE.Vector2 {
-    // Joystick has priority; falls back to keyboard for desktop play.
-    const joy = this.leftJoystick.getValue();
-    if (joy.lengthSq() > 0.0001) return joy.clone();
+    return this.leftJoystick.getValue();
+  }
 
+  public getLookDelta(): THREE.Vector2 {
+    const delta = new THREE.Vector2();
+
+    // Right joystick for look
+    const rightJoy = this.rightJoystick.getValue();
+    if (rightJoy.lengthSq() > 0) {
+      delta.x += rightJoy.x * 25;
+      delta.y += rightJoy.y * 25;
+    }
+
+    // Swipe for look
+    delta.x += this.swipeDelta.x;
+    delta.y += this.swipeDelta.y;
+    this.swipeDelta.set(0, 0);
+
+    return delta;
+  }
+
+  public getLastTouchPosition(): THREE.Vector2 {
+    return this.lastTouchPos.clone();
+  }
+
+  public dispose() {
+    this.leftJoystick.dispose();
+    this.rightJoystick.dispose();
+  }
+}
+
+// Mouse/Keyboard control manager
+class DesktopControls {
+  private keys = new Set<string>();
+  private mouseDelta = new THREE.Vector2();
+  private mousePosition = new THREE.Vector2();
+  private lastMousePosition = new THREE.Vector2();
+
+  constructor() {
+    this.setupListeners();
+  }
+
+  private setupListeners() {
+    document.addEventListener("keydown", (e: KeyboardEvent) => {
+      this.keys.add(e.key);
+
+      // ESC unlocks pointer
+      if (e.key === "Escape") {
+        document.exitPointerLock?.();
+      }
+    });
+
+    document.addEventListener("keyup", (e: KeyboardEvent) => {
+      this.keys.delete(e.key);
+    });
+
+    document.addEventListener("mousedown", () => {
+      // Request pointer lock on any mouse button
+      if (!document.pointerLockElement) {
+        document.body.requestPointerLock?.();
+      }
+    });
+
+    document.addEventListener("mousemove", (e: MouseEvent) => {
+      // Update normalized position for raycasting
+      const newX = (e.clientX / globalThis.innerWidth) * 2 - 1;
+      const newY = -(e.clientY / globalThis.innerHeight) * 2 + 1;
+      this.mousePosition.set(newX, newY);
+
+      // Use movement delta when pointer is locked
+      if (document.pointerLockElement) {
+        this.mouseDelta.x += e.movementX;
+        this.mouseDelta.y += e.movementY;
+      } else {
+        // Fallback to position-based delta
+        const posDeltaX = newX - this.lastMousePosition.x;
+        const posDeltaY = newY - this.lastMousePosition.y;
+        this.lastMousePosition.set(newX, newY);
+
+        if (Math.abs(posDeltaX) > 0.001 || Math.abs(posDeltaY) > 0.001) {
+          this.mouseDelta.x += posDeltaX * 100;
+          this.mouseDelta.y += posDeltaY * 100;
+        }
+      }
+    });
+
+    document.addEventListener("contextmenu", (e: MouseEvent) => {
+      e.preventDefault();
+    });
+  }
+
+  public getMovementVector(): THREE.Vector2 {
     const moveZ = this.getAxis("s", "w") ||
       this.getAxis("ArrowDown", "ArrowUp");
     const moveX = this.getAxis("d", "a") ||
       this.getAxis("ArrowRight", "ArrowLeft");
-    return new THREE.Vector2(moveX, -moveZ); // y positive means forward like joystick
+    return new THREE.Vector2(moveX, -moveZ);
+  }
+
+  public getLookDelta(): THREE.Vector2 {
+    const delta = this.mouseDelta.clone();
+    this.mouseDelta.set(0, 0);
+    return delta;
+  }
+
+  public getMousePosition(): THREE.Vector2 {
+    return this.mousePosition.clone();
+  }
+
+  public isKeyDown(key: string): boolean {
+    return this.keys.has(key);
   }
 
   public consumeKey(key: string): boolean {
@@ -278,7 +343,75 @@ export class InputManager {
     return false;
   }
 
-  // Interaction queue: used by spacebar, mouse/tap, or on-screen button
+  private getAxis(positiveKey: string, negativeKey: string): number {
+    return (this.keys.has(positiveKey) ? 1 : 0) -
+      (this.keys.has(negativeKey) ? 1 : 0);
+  }
+
+  public clear() {
+    this.keys.clear();
+    this.mouseDelta.set(0, 0);
+  }
+}
+
+// Main InputManager that coordinates both control schemes
+export class InputManager {
+  private desktopControls: DesktopControls;
+  private touchControls: TouchControls;
+  private interactRequested = false;
+
+  constructor() {
+    this.desktopControls = new DesktopControls();
+    this.touchControls = new TouchControls();
+
+    // Setup interaction triggers
+    document.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === " " || e.key === "Spacebar" || e.key === "Space") {
+        this.queueInteract();
+      }
+    });
+  }
+
+  public dispose() {
+    this.touchControls.dispose();
+  }
+
+  // --- Public API ---
+
+  public getMovementVector(): THREE.Vector2 {
+    // Touch controls take priority if active
+    const touchMove = this.touchControls.getMovementVector();
+    if (touchMove.lengthSq() > 0.0001) {
+      return touchMove;
+    }
+
+    // Fallback to keyboard
+    return this.desktopControls.getMovementVector();
+  }
+
+  public getLookDelta(): THREE.Vector2 {
+    // Combine both - touch and mouse won't both be active simultaneously
+    const touchDelta = this.touchControls.getLookDelta();
+    const mouseDelta = this.desktopControls.getLookDelta();
+    return touchDelta.add(mouseDelta);
+  }
+
+  public getNormalizedMousePosition(): THREE.Vector2 {
+    return this.desktopControls.getMousePosition();
+  }
+
+  public getLastTouchPosition(): THREE.Vector2 {
+    return this.touchControls.getLastTouchPosition();
+  }
+
+  public isKeyDown(key: string): boolean {
+    return this.desktopControls.isKeyDown(key);
+  }
+
+  public consumeKey(key: string): boolean {
+    return this.desktopControls.consumeKey(key);
+  }
+
   public queueInteract() {
     this.interactRequested = true;
   }
@@ -289,32 +422,17 @@ export class InputManager {
     return should;
   }
 
-  // Clears transient input state (used on level reset/game over).
   public clear() {
-    this.keys.clear();
-    this.mouseDelta.set(0, 0);
-    this.touchDelta.set(0, 0);
+    this.desktopControls.clear();
     this.interactRequested = false;
   }
 
-  // Check if a screen coordinate is within joystick bounds
-  public isTouchOnJoystick(clientX: number, clientY: number): boolean {
-    return this.leftJoystick.isPointInside(clientX, clientY) ||
-      this.rightJoystick.isPointInside(clientX, clientY);
-  }
-
-  // Get the last touch/pointer position for cursor placement
-  public getLastTouchPosition(): THREE.Vector2 {
-    return this._lastTouchPosition.clone();
-  }
-
-  // Get the touch down position (screen coordinates) for marker placement
+  // Kept for compatibility
   public getLastTouchDownPoint(): { clientX: number; clientY: number } | null {
-    return this._lastTouchDown;
+    return null;
   }
 
-  // Clear the touch down point after handling it
   public clearTouchDownPoint(): void {
-    this._lastTouchDown = null;
+    // No-op for compatibility
   }
 }
