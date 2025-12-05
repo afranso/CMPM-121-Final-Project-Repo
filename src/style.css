@@ -47,15 +47,15 @@
 .ui-inventory {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  top: 90px;
   padding: 10px;
-  background: var(--theme-ui-bg-light);
+  background: var(--theme-ui-bg-lighter);
   color: var(--theme-text);
-  border-radius: 8px;
+  border-radius: 6px;
   font-family: sans-serif;
   font-size: 18px;
   min-width: 150px;
-  text-align: center;
+  text-align: right;
   z-index: 10;
 }
 

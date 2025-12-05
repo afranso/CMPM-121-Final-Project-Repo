@@ -5,7 +5,6 @@ export class UIManager {
 
   // NEW UI PANELS
   private topLeftBox: HTMLDivElement;
-  private topRightBox: HTMLDivElement;
   private topCenterBox: HTMLDivElement;
 
   // optional bar text for bat strength
@@ -33,11 +32,6 @@ export class UIManager {
     this.topLeftBox.className = "ui-top-left";
     this.topLeftBox.textContent = "";
 
-    // NEW — TOP RIGHT CONTROL TEXT
-    this.topRightBox = document.createElement("div");
-    this.topRightBox.className = "ui-top-right";
-    this.topRightBox.textContent = "";
-
     // NEW — TOP CENTER OBJECTIVE TEXT
     this.topCenterBox = document.createElement("div");
     this.topCenterBox.className = "ui-top-center";
@@ -48,7 +42,6 @@ export class UIManager {
     document.body.appendChild(this.overlay);
     document.body.appendChild(this.inventoryBox);
     document.body.appendChild(this.topLeftBox);
-    document.body.appendChild(this.topRightBox);
     document.body.appendChild(this.topCenterBox);
 
     this.updateInventory([]);
@@ -57,11 +50,6 @@ export class UIManager {
   // TOP LEFT OBJECTIVE — NEW
   public showTopLeft(text: string) {
     this.topLeftBox.textContent = text;
-  }
-
-  // TOP RIGHT CONTROLS — NEW
-  public showTopRight(text: string) {
-    this.topRightBox.textContent = text;
   }
 
   // TOP CENTER OBJECTIVE — NEW
@@ -178,7 +166,6 @@ export class UIManager {
     this.overlay.remove();
     this.inventoryBox.remove();
     this.topLeftBox.remove();
-    this.topRightBox.remove();
     this.batBox?.remove();
     this.interactButton?.remove();
   }
