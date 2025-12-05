@@ -38,6 +38,7 @@ export class LevelOne extends GameScene {
   private ui: UIManager;
   private raycaster = new THREE.Raycaster();
   private doorMesh!: THREE.Mesh;
+  private doorBodyInWorld = true; // Track if door physics body is in world
   private button!: THREE.Mesh;
   private marker!: THREE.Mesh;
   private keyMesh!: THREE.Mesh;
@@ -256,8 +257,9 @@ export class LevelOne extends GameScene {
   private openDoor() {
     if (this.state.doorOpened) return;
     this.state.doorOpened = true;
-    if (this.doorMesh.userData.physicsBody) {
+    if (this.doorMesh.userData.physicsBody && this.doorBodyInWorld) {
       this.physicsWorld.removeRigidBody(this.doorMesh.userData.physicsBody);
+      this.doorBodyInWorld = false;
     }
     this.doorMesh.visible = false;
     this.ui.showMessage("Door Unlocked!");
@@ -622,7 +624,17 @@ export class LevelOne extends GameScene {
 
     // Restore door state
     if (this.state.doorOpened) {
-      this.doorMesh.position.y = -5;
+      this.doorMesh.visible = false;
+      if (this.doorMesh.userData.physicsBody && this.doorBodyInWorld) {
+        this.physicsWorld.removeRigidBody(this.doorMesh.userData.physicsBody);
+        this.doorBodyInWorld = false;
+      }
+    } else {
+      this.doorMesh.visible = true;
+      if (this.doorMesh.userData.physicsBody && !this.doorBodyInWorld) {
+        this.physicsWorld.addRigidBody(this.doorMesh.userData.physicsBody);
+        this.doorBodyInWorld = true;
+      }
     }
 
     // Restore chest state
@@ -641,6 +653,82 @@ export class LevelOne extends GameScene {
     }
 
     this.ui.showMessage("Game loaded successfully!", 2000);
+  }
+
+  // Reset to initial game state
+  public resetToInitialState(): void {
+    // Reset player position
+    const startPos = new THREE.Vector3(0, 0.9, 5);
+    const transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
+    this.playerBody.setWorldTransform(transform);
+    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+
+    // Reset camera
+    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
+    this.camera.lookAt(0, 1, 0);
+
+    // Clear inventory
+    this.inventory = [];
+    this.ui.updateInventory(this.inventory);
+
+    // Reset game state
+    this.state = {
+      doorOpened: false,
+      chestOpened: false,
+      wrongLandings: 0,
+      blockSpawningEnabled: true,
+      boardBroken: false,
+    };
+
+    // Reset bat count
+    this.batCount = 0;
+
+    // Reset key visibility
+    this.keyMesh.visible = false;
+
+    // Reset all bats visibility
+    this.bats.forEach((bat) => {
+      bat.visible = true;
+    });
+
+    // Reset door - re-add to physics world if it was removed
+    this.doorMesh.visible = true;
+    this.doorMesh.position.set(0, 1.5, CONSTANTS.DOOR_Z);
+    if (this.doorMesh.userData.physicsBody) {
+      const doorBody = this.doorMesh.userData.physicsBody as Ammo.btRigidBody;
+
+      // Only add to physics world if it's not already there
+      if (!this.doorBodyInWorld) {
+        this.physicsWorld.addRigidBody(doorBody);
+        this.doorBodyInWorld = true;
+      }
+
+      // Reset door transform to original position
+      const doorTransform = new Ammo.btTransform();
+      doorTransform.setIdentity();
+      doorTransform.setOrigin(new Ammo.btVector3(0, 1.5, CONSTANTS.DOOR_Z));
+      doorBody.setWorldTransform(doorTransform);
+    }
+
+    // Reset chest appearance
+    if (this.chest) {
+      (this.chest.material as THREE.MeshStandardMaterial).color.set(0x8B4513);
+      this.chest.scale.set(1, 1, 1);
+    }
+
+    // Reset board
+    this.board.visible = true;
+
+    // Clear all spawned blocks
+    for (const b of this.blocks) {
+      if (b.pooled) this.blockPool.release(b.pooled);
+    }
+    this.blocks.length = 0;
+
+    this.ui.showMessage("New game started!", 2000);
   }
 }
 
