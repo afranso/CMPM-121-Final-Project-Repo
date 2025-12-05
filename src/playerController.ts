@@ -14,7 +14,7 @@ export class PlayerController {
   private moveDir = new THREE.Vector3();
 
   private readonly SPEED = 5;
-  private readonly ROTATION_SPEED = 0.002;
+  private readonly ROTATION_SPEED = 0.005;
 
   constructor(
     camera: THREE.Camera,
@@ -30,19 +30,25 @@ export class PlayerController {
   }
 
   public update() {
-    this.handleRotation();
     this.handleMovement();
     this.syncCameraToBody();
+    this.handleRotation();
   }
 
   private handleRotation() {
     const delta = this.input.getLookDelta();
     if (delta.lengthSq() > 0) {
-      // Horizontal swipe rotates the camera left/right
+      // Horizontal mouse movement rotates yaw (left/right)
       this.camera.rotation.y -= delta.x * this.ROTATION_SPEED;
 
-      // Vertical swipe pans the camera up/down (move position, not rotation)
-      this.camera.position.y += delta.y * 0.01;
+      // Vertical mouse movement rotates pitch (up/down)
+      this.camera.rotation.x -= delta.y * this.ROTATION_SPEED;
+
+      // Clamp pitch to prevent over-rotation (±π/2 prevents flipping)
+      this.camera.rotation.x = Math.max(
+        -Math.PI / 2,
+        Math.min(Math.PI / 2, this.camera.rotation.x),
+      );
     }
   }
 
