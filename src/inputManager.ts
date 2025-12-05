@@ -31,11 +31,12 @@ class VirtualJoystick {
   private setupTouchListeners() {
     // Use touchstart/touchmove/touchend instead of pointer events to avoid conflicts with mouse
     this.base.addEventListener("touchstart", (e: TouchEvent) => {
-      if (this.touchId !== null || e.touches.length === 0) return;
+      if (this.touchId !== null || e.changedTouches.length === 0) return;
       e.preventDefault();
       e.stopPropagation();
 
-      const touch = e.touches[0];
+      // Use changedTouches to get the touch that just started on this element
+      const touch = e.changedTouches[0];
       this.touchId = touch.identifier;
       const rect = this.base.getBoundingClientRect();
       this.startX = rect.left + rect.width / 2;
@@ -59,20 +60,15 @@ class VirtualJoystick {
 
     const endHandler = (e: TouchEvent) => {
       if (this.touchId === null) return;
-      e.preventDefault();
-      e.stopPropagation();
 
-      // Check if our touch ended
-      let touchEnded = true;
-      for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === this.touchId) {
-          touchEnded = false;
+      // Check if our touch ended by looking in changedTouches
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === this.touchId) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.reset();
           break;
         }
-      }
-
-      if (touchEnded) {
-        this.reset();
       }
     };
 
