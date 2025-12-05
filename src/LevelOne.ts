@@ -99,7 +99,7 @@ export class LevelOne extends GameScene {
       "Objective: Collect all 3 bats to break the barricade.",
     );
     this.ui.showTopRight(
-      "Controls:\n- WASD / Arrows / Left Stick: Move\n- Mouse / Right Stick: Look\n- Spacebar or On-Screen Button: Interact\n- F5: Save Menu\n- F9: Load Menu",
+      "Controls:\n- WASD / Arrows / Left Stick: Move\n- Mouse / Right Stick: Look\n- Spacebar or On-Screen Button: Interact",
     );
   }
 

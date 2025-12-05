@@ -58,11 +58,7 @@ export class UIManager {
 
   // Add save/load instructions to controls
   public addSaveLoadInstructions() {
-    const currentText = this.topRightBox.textContent || "";
-    if (!currentText.includes("F5")) {
-      this.topRightBox.textContent = currentText +
-        "\n- F5: Save Menu\n- F9: Load Menu";
-    }
+    // No longer adding F5/F9 instructions
   }
 
   // On-screen interaction button for touch users.

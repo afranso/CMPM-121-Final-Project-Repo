@@ -54,7 +54,6 @@ function initApp() {
   const instructionsDiv = document.createElement("div");
   instructionsDiv.className = "ui-save-instructions";
   instructionsDiv.innerHTML = `
-    <div>F5: Save Menu | F9: Load Menu</div>
     <div style="margin-top: 8px;">
       <button class="quick-save-btn" style="margin-right: 5px;">💾 Save</button>
       <button class="quick-load-btn" style="margin-right: 5px;">📂 Load</button>
@@ -92,19 +91,7 @@ function initApp() {
 
   // Keyboard handlers for save/load menus - capture at document level
   document.addEventListener("keydown", (e: KeyboardEvent) => {
-    console.log("Key pressed:", e.key, "Code:", e.code); // Debug all keys
-
-    if (e.key === "F5" || e.code === "F5") {
-      e.preventDefault();
-      e.stopPropagation();
-      console.log("F5 pressed - Opening save menu");
-      saveLoadUI.show("save");
-    } else if (e.key === "F9" || e.code === "F9") {
-      e.preventDefault();
-      e.stopPropagation();
-      console.log("F9 pressed - Opening load menu");
-      saveLoadUI.show("load");
-    } else if (e.key === "Escape" || e.code === "Escape") {
+    if (e.key === "Escape" || e.code === "Escape") {
       console.log("ESC pressed - Closing save/load menu");
       saveLoadUI.hide();
     }
