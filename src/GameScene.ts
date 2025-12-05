@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { InputManager } from "./inputManager.ts";
 import { PlayerController } from "./playerController.ts";
+import { GameState } from "./saveManager.ts";
 
 export interface PhysicsObject {
   mesh: THREE.Mesh;
@@ -179,4 +180,9 @@ export abstract class GameScene {
   public getCamera(): THREE.PerspectiveCamera {
     return this.camera;
   }
+
+  // Save/Load methods to be implemented by subclasses
+  public abstract saveState(): GameState;
+  public abstract loadState(state: GameState): void;
+  public abstract resetToInitialState(): void;
 }

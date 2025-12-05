@@ -10,7 +10,11 @@ export class UIManager {
   // optional bar text for bat strength
   private batBox: HTMLDivElement | null = null;
 
+  private isDarkMode = false;
+
   constructor() {
+    // Detect theme preference
+    this.detectTheme();
     this.overlay = document.createElement("div");
     this.overlay.className = "ui-overlay";
 
@@ -50,6 +54,15 @@ export class UIManager {
     this.topRightBox.textContent = text;
   }
 
+  // Add save/load instructions to controls
+  public addSaveLoadInstructions() {
+    const currentText = this.topRightBox.textContent || "";
+    if (!currentText.includes("F5")) {
+      this.topRightBox.textContent = currentText +
+        "\n- F5: Save Menu\n- F9: Load Menu";
+    }
+  }
+
   public showMessage(text: string, duration = 2000) {
     this.messageBox.textContent = text;
     this.messageBox.style.display = "block";
@@ -75,6 +88,22 @@ export class UIManager {
       document.body.appendChild(this.batBox);
     }
     this.batBox.textContent = `Bat: ${Math.floor(strength)}%`;
+  }
+
+  private detectTheme() {
+    const darkModeQuery = globalThis.matchMedia?.(
+      "(prefers-color-scheme: dark)",
+    );
+    this.isDarkMode = darkModeQuery?.matches ?? false;
+
+    // Listen for theme changes
+    darkModeQuery?.addEventListener("change", (e: MediaQueryListEvent) => {
+      this.isDarkMode = e.matches;
+    });
+  }
+
+  public isDark(): boolean {
+    return this.isDarkMode;
   }
 
   public dispose() {
