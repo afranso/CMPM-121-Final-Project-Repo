@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 import { UIManager } from "./UIManager.ts";
 import { BlockPool, PooledBlock } from "./objectPool.ts";
+import { GameState } from "./saveManager.ts";
 
 const BASE_COLORS = {
   LIGHT: {
@@ -80,7 +81,7 @@ export class LevelOne extends GameScene {
       "Objective: Collect all 3 bats to break the barricade.",
     );
     this.ui.showTopRight(
-      "Controls:\n- Left Joystick: Move\n- Right Joystick: Look\n- Left Click/Tap: Interact / Pick Up\n- E: Open Door (keyboard)",
+      "Controls:\n- Left Joystick: Move\n- Right Joystick: Look\n- Left Click/Tap: Interact / Pick Up\n- E: Open Door (keyboard)\n- F5: Save Menu\n- F9: Load Menu",
     );
   }
 
@@ -527,5 +528,84 @@ export class LevelOne extends GameScene {
     this.ui.showOverlay("🎉 LEVEL 1 COMPLETE 🎉", "You smashed the board!");
     this.state.blockSpawningEnabled = false;
     this.inputManager.clear();
+  }
+
+  // Save current game state
+  public saveState(): GameState {
+    const pos = this.playerMesh.position;
+    const rot = this.camera.rotation;
+    const vel = this.playerBody.getLinearVelocity();
+
+    return {
+      timestamp: Date.now(),
+      playerState: {
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        rotation: { x: rot.x, y: rot.y, z: rot.z },
+        velocity: { x: vel.x(), y: vel.y(), z: vel.z() },
+      },
+      inventory: [...this.inventory],
+      levelState: { ...this.state },
+      batsCollected: this.batCount,
+      keyVisible: this.keyMesh.visible,
+      batsVisible: this.bats.map((bat) => bat.visible),
+    };
+  }
+
+  // Load saved game state
+  public loadState(state: GameState): void {
+    // Restore player position
+    const pos = state.playerState.position;
+    const transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
+    this.playerBody.setWorldTransform(transform);
+
+    // Restore velocity
+    const vel = state.playerState.velocity;
+    this.playerBody.setLinearVelocity(new Ammo.btVector3(vel.x, vel.y, vel.z));
+    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+
+    // Restore camera position and rotation
+    this.camera.position.set(pos.x, pos.y + 0.5, pos.z);
+    const rot = state.playerState.rotation;
+    this.camera.rotation.set(rot.x, rot.y, rot.z);
+
+    // Restore inventory and UI
+    this.inventory = [...state.inventory];
+    this.ui.updateInventory(this.inventory);
+
+    // Restore level state
+    this.state = { ...state.levelState };
+    this.batCount = state.batsCollected;
+    this.keyMesh.visible = state.keyVisible;
+
+    // Restore bat visibility
+    state.batsVisible.forEach((visible, index) => {
+      if (index < this.bats.length) {
+        this.bats[index].visible = visible;
+      }
+    });
+
+    // Restore door state
+    if (this.state.doorOpened) {
+      this.doorMesh.position.y = -5;
+    }
+
+    // Restore chest state
+    if (this.state.chestOpened && this.chest) {
+      this.chest.scale.y = 0.3;
+    }
+
+    // Restore board state
+    if (this.state.boardBroken) {
+      this.board.visible = false;
+    }
+
+    // Update bat strength display if needed
+    if (this.batCount > 0) {
+      this.ui.setBatStrength((this.batCount / 3) * 100);
+    }
+
+    this.ui.showMessage("Game loaded successfully!", 2000);
   }
 }

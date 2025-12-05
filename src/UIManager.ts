@@ -50,6 +50,15 @@ export class UIManager {
     this.topRightBox.textContent = text;
   }
 
+  // Add save/load instructions to controls
+  public addSaveLoadInstructions() {
+    const currentText = this.topRightBox.textContent || "";
+    if (!currentText.includes("F5")) {
+      this.topRightBox.textContent = currentText +
+        "\n- F5: Save Menu\n- F9: Load Menu";
+    }
+  }
+
   public showMessage(text: string, duration = 2000) {
     this.messageBox.textContent = text;
     this.messageBox.style.display = "block";
