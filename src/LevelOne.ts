@@ -96,10 +96,10 @@ export class LevelOne extends GameScene {
 
     // NEW HUD TEXT
     this.ui.showTopLeft(
-      "Objective: Collect all 3 bats to break the barricade.",
+      "CONTROLS\n[MOVE]: WASD / Arrows / Left Joystick\n[LOOK]: Mouse / Right Joystick\n[ACTION]: Spacebar / Onscreen button\n(Mouse) - Click to lock, ESC to unlock.",
     );
-    this.ui.showTopRight(
-      "Controls:\n- WASD / Arrows / Left Stick: Move\n- Mouse / Right Stick: Look\n- Spacebar or On-Screen Button: Interact",
+    this.ui.showTopCenter(
+      "CURRENT OBJECTIVE:\nCollect all 3 bats to break the barricade.",
     );
   }
 
