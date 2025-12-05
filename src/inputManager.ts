@@ -219,9 +219,15 @@ export class InputManager {
     const joy = this.rightJoystick.getValue();
     if (joy.lengthSq() > 0) {
       delta.x += joy.x * 25; // scale to match mouse sensitivity
-      delta.y -= joy.y * 25;
+      // Don't add joystick Y to delta - it's handled separately for camera panning
     }
     return delta;
+  }
+
+  public getLookPanDelta(): number {
+    // Get the vertical component of the right joystick for camera panning only
+    const joy = this.rightJoystick.getValue();
+    return joy.y * 2; // Joystick vertical input scaled for smooth panning
   }
 
   public getNormalizedMousePosition(): THREE.Vector2 {

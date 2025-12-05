@@ -30,19 +30,36 @@ export class PlayerController {
   }
 
   public update() {
-    this.handleRotation();
     this.handleMovement();
     this.syncCameraToBody();
+    this.handleRotation();
   }
 
   private handleRotation() {
     const delta = this.input.getLookDelta();
     if (delta.lengthSq() > 0) {
-      // Horizontal swipe rotates the camera left/right
+      // Horizontal swipe rotates the camera left/right (yaw)
       this.camera.rotation.y -= delta.x * this.ROTATION_SPEED;
 
-      // Vertical swipe pans the camera up/down (move position, not rotation)
-      this.camera.position.y += delta.y * 0.01;
+      // Vertical swipe/mouse rotates the camera up/down (pitch)
+      this.camera.rotation.x -= delta.y * this.ROTATION_SPEED;
+
+      // Clamp vertical look to prevent over-rotation
+      this.camera.rotation.x = Math.max(
+        -Math.PI / 2,
+        Math.min(Math.PI / 2, this.camera.rotation.x),
+      );
+    }
+
+    // Get joystick vertical rotation separately
+    const panDelta = this.input.getLookPanDelta();
+    if (Math.abs(panDelta) > 0) {
+      this.camera.rotation.x -= panDelta * this.ROTATION_SPEED;
+      // Clamp vertical look to prevent over-rotation
+      this.camera.rotation.x = Math.max(
+        -Math.PI / 2,
+        Math.min(Math.PI / 2, this.camera.rotation.x),
+      );
     }
   }
 
