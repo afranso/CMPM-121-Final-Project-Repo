@@ -291,21 +291,14 @@ class DesktopControls {
       const newY = -(e.clientY / globalThis.innerHeight) * 2 + 1;
       this.mousePosition.set(newX, newY);
 
-      // Use movement delta when pointer is locked
+      // Only allow camera movement when pointer is locked
       if (document.pointerLockElement) {
         this.mouseDelta.x += e.movementX;
         this.mouseDelta.y += e.movementY;
-      } else {
-        // Fallback to position-based delta
-        const posDeltaX = newX - this.lastMousePosition.x;
-        const posDeltaY = newY - this.lastMousePosition.y;
-        this.lastMousePosition.set(newX, newY);
-
-        if (Math.abs(posDeltaX) > 0.001 || Math.abs(posDeltaY) > 0.001) {
-          this.mouseDelta.x += posDeltaX * 100;
-          this.mouseDelta.y += posDeltaY * 100;
-        }
       }
+
+      // Update last position for raycasting continuity
+      this.lastMousePosition.set(newX, newY);
     });
 
     document.addEventListener("contextmenu", (e: MouseEvent) => {
