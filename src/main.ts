@@ -50,37 +50,16 @@ function initApp() {
     saveManager.save(slotId);
   });
 
-  // Add instructions for save/load
-  const instructionsDiv = document.createElement("div");
-  instructionsDiv.className = "ui-save-instructions";
-  instructionsDiv.innerHTML = `
-    <div style="margin-top: 8px;">
-      <button class="quick-save-btn" style="margin-right: 5px;">💾 Save</button>
-      <button class="quick-load-btn" style="margin-right: 5px;">📂 Load</button>
-      <button class="new-game-btn">🔄 New Game</button>
-    </div>
-  `;
-  document.body.appendChild(instructionsDiv);
-
-  // Add click handlers for the buttons
-  instructionsDiv.querySelector(".quick-save-btn")?.addEventListener(
-    "click",
+  // Create save/load buttons using UIManager
+  currentScene.getUI().createSaveLoadButtons(
     () => {
       console.log("Save button clicked");
       saveLoadUI.show("save");
     },
-  );
-
-  instructionsDiv.querySelector(".quick-load-btn")?.addEventListener(
-    "click",
     () => {
       console.log("Load button clicked");
       saveLoadUI.show("load");
     },
-  );
-
-  instructionsDiv.querySelector(".new-game-btn")?.addEventListener(
-    "click",
     () => {
       if (confirm("Start a new game? This will reset all progress.")) {
         console.log("New game button clicked");

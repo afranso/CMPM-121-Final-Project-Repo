@@ -95,12 +95,14 @@ export class LevelOne extends GameScene {
     this.setupInteractions();
 
     // NEW HUD TEXT
-    this.ui.showTopLeft(
-      "CONTROLS\n[MOVE]: WASD / Arrows / Left Joystick\n[LOOK]: Mouse / Right Joystick\n[ACTION]: Spacebar / Onscreen button\n(Mouse) - Click to lock, ESC to unlock.",
-    );
+    this.ui.showStandardControls();
     this.ui.showTopCenter(
       "CURRENT OBJECTIVE:\nCollect all 3 bats to break the barricade.",
     );
+  }
+
+  public getUI(): UIManager {
+    return this.ui;
   }
 
   protected setupPlayer(): void {
@@ -817,11 +819,9 @@ export class LevelOne extends GameScene {
     this.setupLevel();
     this.setupInteractions();
 
-    this.ui.showTopLeft(
-      "Objective: Collect all 3 bats to break the barricade.",
-    );
-    this.ui.showTopRight(
-      "Controls:\n- Left Click: Interact / Pick Up\n- E: Open Door",
+    this.ui.showStandardControls();
+    this.ui.showTopCenter(
+      "CURRENT OBJECTIVE:\nCollect all 3 bats to break the barricade.",
     );
   }
 
