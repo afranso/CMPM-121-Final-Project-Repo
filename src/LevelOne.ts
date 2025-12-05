@@ -43,6 +43,8 @@ export class LevelOne extends GameScene {
   private marker!: THREE.Mesh;
   private keyMesh!: THREE.Mesh;
   private chest!: THREE.Mesh;
+  private readonly centerPoint = new THREE.Vector2(0, 0);
+  private tmpDir = new THREE.Vector3();
 
   // MULTIPLE bats
   private bats: THREE.Mesh[] = [];
@@ -97,7 +99,7 @@ export class LevelOne extends GameScene {
       "Objective: Collect all 3 bats to break the barricade.",
     );
     this.ui.showTopRight(
-      "Controls:\n- Left Joystick: Move\n- Right Joystick: Look\n- Left Click/Tap: Interact / Pick Up\n- E: Open Door (keyboard)\n- F5: Save Menu\n- F9: Load Menu",
+      "Controls:\n- WASD / Arrows / Left Stick: Move\n- Mouse / Right Stick: Look\n- Spacebar or On-Screen Button: Interact\n- F5: Save Menu\n- F9: Load Menu",
     );
   }
 
@@ -330,51 +332,26 @@ export class LevelOne extends GameScene {
   }
 
   private setupInteractions() {
-    globalThis.addEventListener("pointermove", (_e) => {
-      const coords = this.inputManager.getNormalizedMousePosition();
-      this.raycastUpdateMarker(coords);
-    });
-    globalThis.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-
-      // For touch controls: place cursor at touch point first
-      const touchDown = this.inputManager.getLastTouchDownPoint();
-      if (
-        touchDown &&
-        this.inputManager.isTouchOnJoystick(
-            touchDown.clientX,
-            touchDown.clientY,
-          ) === false
-      ) {
-        // This is a touch interaction (not on joystick)
-        // Position the marker at the touch point
-        const touchCoords = new THREE.Vector2(
-          (touchDown.clientX / globalThis.innerWidth) * 2 - 1,
-          -(touchDown.clientY / globalThis.innerHeight) * 2 + 1,
-        );
-        this.raycastUpdateMarker(touchCoords);
-
-        // Now perform the interaction at the marker's new position
-        this.handleLeftClick(touchCoords);
-
-        // Clear the touch point after handling
-        this.inputManager.clearTouchDownPoint();
-      } else {
-        // Desktop mouse click or joystick - use current mouse position
-        const coords = this.inputManager.getNormalizedMousePosition();
-        this.handleLeftClick(coords);
-      }
+    this.ui.createInteractButton(() => {
+      this.inputManager.queueInteract();
     });
   }
 
-  private raycastUpdateMarker(coords: THREE.Vector2) {
-    this.raycaster.setFromCamera(coords, this.camera);
-    const objects = this.scene.children.filter((obj) => obj !== this.marker);
+  private raycastUpdateMarkerFromCenter() {
+    this.raycaster.setFromCamera(this.centerPoint, this.camera);
+    const objects = this.scene.children.filter((obj) =>
+      obj !== this.marker && obj !== this.playerMesh
+    );
     const hits = this.raycaster.intersectObjects(objects);
     if (hits.length > 0) {
       this.marker.position.copy(hits[0].point).add(
         new THREE.Vector3(0, 0.05, 0),
       );
+    } else {
+      // If nothing is hit, project a point forward so the cursor stays visible.
+      this.camera.getWorldDirection(this.tmpDir.set(0, 0, -1));
+      this.tmpDir.normalize().multiplyScalar(10);
+      this.marker.position.copy(this.camera.position).add(this.tmpDir);
     }
   }
 
@@ -402,10 +379,11 @@ export class LevelOne extends GameScene {
     setTimeout(() => this.gameOver(), 1000);
   }
 
-  private handleLeftClick(coords: THREE.Vector2) {
-    this.raycaster.setFromCamera(coords, this.camera);
+  private handleInteractionAtMarker() {
+    this.raycaster.setFromCamera(this.centerPoint, this.camera);
     const visible = this.scene.children.filter((obj) =>
-      (obj as THREE.Mesh).visible !== false
+      (obj as THREE.Mesh).visible !== false &&
+      obj !== this.marker && obj !== this.playerMesh
     );
     const intersects = this.raycaster.intersectObjects(visible);
     if (intersects.length === 0) return;
@@ -516,8 +494,9 @@ export class LevelOne extends GameScene {
 
   public override update() {
     super.update();
-    if (this.inputManager.consumeKey("e")) {
-      this.tryOpenDoor();
+    this.raycastUpdateMarkerFromCenter();
+    if (this.inputManager.consumeInteractRequest()) {
+      this.handleInteractionAtMarker();
     }
     this.checkBlockPuzzles();
   }

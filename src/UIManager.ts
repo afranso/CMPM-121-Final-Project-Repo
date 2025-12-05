@@ -10,6 +10,8 @@ export class UIManager {
   // optional bar text for bat strength
   private batBox: HTMLDivElement | null = null;
 
+  private interactButton: HTMLButtonElement | null = null;
+
   private isDarkMode = false;
 
   constructor() {
@@ -63,6 +65,18 @@ export class UIManager {
     }
   }
 
+  // On-screen interaction button for touch users.
+  public createInteractButton(onPress: () => void): HTMLButtonElement {
+    if (this.interactButton) return this.interactButton;
+    const btn = document.createElement("button");
+    btn.className = "ui-interact-btn";
+    btn.textContent = "[SPACE]";
+    btn.addEventListener("click", () => onPress());
+    document.body.appendChild(btn);
+    this.interactButton = btn;
+    return btn;
+  }
+
   public showMessage(text: string, duration = 2000) {
     this.messageBox.textContent = text;
     this.messageBox.style.display = "block";
@@ -112,6 +126,7 @@ export class UIManager {
     this.topLeftBox.remove();
     this.topRightBox.remove();
     this.batBox?.remove();
+    this.interactButton?.remove();
   }
 
   public showOverlay(title: string, message: string) {

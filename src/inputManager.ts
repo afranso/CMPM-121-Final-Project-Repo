@@ -95,13 +95,15 @@ class VirtualJoystick {
 export class InputManager {
   private keys: Set<string> = new Set();
   private mouseDelta = new THREE.Vector2();
-  private _isRightMouseDown = false;
   private _mousePosition = new THREE.Vector2();
+  private _lastMousePosition = new THREE.Vector2();
   private _lastTouchPosition = new THREE.Vector2();
   private touchDelta = new THREE.Vector2();
   private _activeTouchPointerId: number | null = null;
   private _lastTouchX = 0;
   private _lastTouchY = 0;
+
+  private interactRequested = false;
 
   private readonly leftJoystick = new VirtualJoystick("left");
   private readonly rightJoystick = new VirtualJoystick("right");
@@ -116,30 +118,48 @@ export class InputManager {
 
   private setupHandlers() {
     this._handlers = {
-      keydown: (e: Event) => this.keys.add((e as KeyboardEvent).key),
-      keyup: (e: Event) => this.keys.delete((e as KeyboardEvent).key),
-      mousedown: (e: Event) => {
-        const me = e as MouseEvent;
-        if (me.button === 2) this._isRightMouseDown = true;
+      keydown: (e: Event) => {
+        const key = (e as KeyboardEvent).key;
+        this.keys.add(key);
+        // Spacebar triggers interaction for keyboard play.
+        if (key === " " || key === "Spacebar" || key === "Space") {
+          this.queueInteract();
+        }
+        // ESC unlocks pointer for menu access
+        if (key === "Escape") {
+          document.exitPointerLock?.();
+        }
       },
-      mouseup: (e: Event) => {
-        const me = e as MouseEvent;
-        if (me.button === 2) this._isRightMouseDown = false;
+      keyup: (e: Event) => this.keys.delete((e as KeyboardEvent).key),
+      mousedown: (_e: Event) => {
+        // Request pointer lock for FPS mouse look on desktop (any button)
+        if (!document.pointerLockElement) {
+          document.body.requestPointerLock?.();
+        }
       },
       mousemove: (e: Event) => {
         const me = e as MouseEvent;
-        // Track raw position for raycasting
-        this._mousePosition.x = (me.clientX / globalThis.innerWidth) * 2 - 1;
-        this._mousePosition.y = -(me.clientY / globalThis.innerHeight) * 2 + 1;
-        this._lastTouchPosition.set(
-          this._mousePosition.x,
-          this._mousePosition.y,
-        );
+        // Calculate position-based delta as fallback (when pointer lock unavailable)
+        const newX = (me.clientX / globalThis.innerWidth) * 2 - 1;
+        const newY = -(me.clientY / globalThis.innerHeight) * 2 + 1;
+        const posDeltaX = newX - this._lastMousePosition.x;
+        const posDeltaY = newY - this._lastMousePosition.y;
+        this._lastMousePosition.set(newX, newY);
 
-        // Track delta for camera movement
-        if (this._isRightMouseDown) {
+        // Store normalized position for raycasting
+        this._mousePosition.set(newX, newY);
+        this._lastTouchPosition.set(newX, newY);
+
+        // Track delta for FPS camera: use movementX/Y when available (pointer locked),
+        // otherwise use position delta as fallback.
+        if (me.movementX !== 0 || me.movementY !== 0) {
+          // Pointer is locked, use movement delta
           this.mouseDelta.x += me.movementX;
           this.mouseDelta.y += me.movementY;
+        } else if (posDeltaX !== 0 || posDeltaY !== 0) {
+          // Fallback: use position-based delta (scale to match sensitivity)
+          this.mouseDelta.x += posDeltaX * 100;
+          this.mouseDelta.y += posDeltaY * 100;
         }
       },
       pointerdown: (e: Event) => {
@@ -219,15 +239,9 @@ export class InputManager {
     const joy = this.rightJoystick.getValue();
     if (joy.lengthSq() > 0) {
       delta.x += joy.x * 25; // scale to match mouse sensitivity
-      // Don't add joystick Y to delta - it's handled separately for camera panning
+      delta.y += joy.y * 25;
     }
     return delta;
-  }
-
-  public getLookPanDelta(): number {
-    // Get the vertical component of the right joystick for camera panning only
-    const joy = this.rightJoystick.getValue();
-    return joy.y * 2; // Joystick vertical input scaled for smooth panning
   }
 
   public getNormalizedMousePosition(): THREE.Vector2 {
@@ -264,10 +278,23 @@ export class InputManager {
     return false;
   }
 
+  // Interaction queue: used by spacebar, mouse/tap, or on-screen button
+  public queueInteract() {
+    this.interactRequested = true;
+  }
+
+  public consumeInteractRequest(): boolean {
+    const should = this.interactRequested;
+    this.interactRequested = false;
+    return should;
+  }
+
   // Clears transient input state (used on level reset/game over).
   public clear() {
     this.keys.clear();
     this.mouseDelta.set(0, 0);
+    this.touchDelta.set(0, 0);
+    this.interactRequested = false;
   }
 
   // Check if a screen coordinate is within joystick bounds

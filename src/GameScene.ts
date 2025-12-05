@@ -35,6 +35,8 @@ export abstract class GameScene {
       0.1,
       1000,
     );
+    // Set Euler order to YXZ for FPS-style camera controls (yaw, pitch, roll)
+    this.camera.rotation.order = "YXZ";
     this.clock = new THREE.Clock();
     this.inputManager = new InputManager();
     this.tmpTrans = new Ammo.btTransform();

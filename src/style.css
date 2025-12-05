@@ -101,6 +101,38 @@
   text-align: center;
 }
 
+.ui-interact-btn {
+  position: fixed;
+  right: 24px;
+  bottom: 200px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #ff7e5f, #f857a6);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-family: sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  z-index: 40;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  opacity: 0.9;
+  pointer-events: auto;
+}
+
+.ui-interact-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4);
+  opacity: 1;
+}
+
+.ui-interact-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
 #game-over-overlay {
   position: absolute;
   inset: 0;
