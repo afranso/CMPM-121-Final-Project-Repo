@@ -57,7 +57,8 @@ function initApp() {
     <div>F5: Save Menu | F9: Load Menu</div>
     <div style="margin-top: 8px;">
       <button class="quick-save-btn" style="margin-right: 5px;">💾 Save</button>
-      <button class="quick-load-btn">📂 Load</button>
+      <button class="quick-load-btn" style="margin-right: 5px;">📂 Load</button>
+      <button class="new-game-btn">🔄 New Game</button>
     </div>
   `;
   document.body.appendChild(instructionsDiv);
@@ -76,6 +77,16 @@ function initApp() {
     () => {
       console.log("Load button clicked");
       saveLoadUI.show("load");
+    },
+  );
+
+  instructionsDiv.querySelector(".new-game-btn")?.addEventListener(
+    "click",
+    () => {
+      if (confirm("Start a new game? This will reset all progress.")) {
+        console.log("New game button clicked");
+        currentScene.resetToInitialState();
+      }
     },
   );
 

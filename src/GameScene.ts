@@ -184,4 +184,5 @@ export abstract class GameScene {
   // Save/Load methods to be implemented by subclasses
   public abstract saveState(): GameState;
   public abstract loadState(state: GameState): void;
+  public abstract resetToInitialState(): void;
 }
