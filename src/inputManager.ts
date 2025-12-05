@@ -103,6 +103,7 @@ export class InputManager {
   private readonly rightJoystick = new VirtualJoystick("right");
 
   private _handlers: Record<string, (e: Event) => void> = {};
+  private _lastTouchDown: { clientX: number; clientY: number } | null = null;
 
   constructor() {
     this.setupHandlers();
@@ -139,6 +140,11 @@ export class InputManager {
       },
       pointerdown: (e: Event) => {
         const pe = e as PointerEvent;
+        // Check if this is a touch or joystick event
+        if (!this.isTouchOnJoystick(pe.clientX, pe.clientY)) {
+          // Store the touch point for later use
+          this._lastTouchDown = { clientX: pe.clientX, clientY: pe.clientY };
+        }
         // Track touch position for interactions
         this._lastTouchPosition.x = (pe.clientX / globalThis.innerWidth) * 2 -
           1;
@@ -227,5 +233,15 @@ export class InputManager {
   // Get the last touch/pointer position for cursor placement
   public getLastTouchPosition(): THREE.Vector2 {
     return this._lastTouchPosition.clone();
+  }
+
+  // Get the touch down position (screen coordinates) for marker placement
+  public getLastTouchDownPoint(): { clientX: number; clientY: number } | null {
+    return this._lastTouchDown;
+  }
+
+  // Clear the touch down point after handling it
+  public clearTouchDownPoint(): void {
+    this._lastTouchDown = null;
   }
 }
