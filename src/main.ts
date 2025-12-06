@@ -26,16 +26,44 @@ function initApp() {
   document.body.appendChild(renderer.domElement);
 
   // Scene Management
-  const currentScene: GameScene = new LevelOne();
+  let currentScene: GameScene = new LevelOne();
+  // Helper to swap scenes
+  function switchToScene(newScene: GameScene) {
+    try {
+      // Dispose old scene resources and its UI
+      currentScene.getUI()?.dispose?.();
+    } catch (e) {
+      // ignore if UI already removed
+    }
+    currentScene.dispose();
+    currentScene = newScene;
+
+    // Rewire save/load callbacks to the new scene
+    saveManager.setSaveCallback(() => currentScene.saveState());
+    saveLoadUI.setLoadCallback((slotId: number) => {
+      const state = saveManager.load(slotId);
+      if (state) currentScene.loadState(state);
+    });
+    saveLoadUI.setSaveCallback((slotId: number) => saveManager.save(slotId));
+
+    // Recreate the per-scene save/load buttons
+    currentScene.getUI().createSaveLoadButtons(
+      () => saveLoadUI.show("save"),
+      () => saveLoadUI.show("load"),
+      () => {
+        if (confirm("Start a new game? This will reset all progress.")) {
+          currentScene.resetToInitialState();
+        }
+      },
+    );
+  }
 
   // Save System Setup
   const saveManager = new SaveManager();
   const saveLoadUI = new SaveLoadUI(saveManager);
 
   // Set up save callback to capture current game state
-  saveManager.setSaveCallback(() => {
-    return currentScene.saveState();
-  });
+  saveManager.setSaveCallback(() => currentScene.saveState());
 
   // Set up load callback
   saveLoadUI.setLoadCallback((slotId: number) => {
@@ -52,17 +80,10 @@ function initApp() {
 
   // Create save/load buttons using UIManager
   currentScene.getUI().createSaveLoadButtons(
-    () => {
-      console.log("Save button clicked");
-      saveLoadUI.show("save");
-    },
-    () => {
-      console.log("Load button clicked");
-      saveLoadUI.show("load");
-    },
+    () => saveLoadUI.show("save"),
+    () => saveLoadUI.show("load"),
     () => {
       if (confirm("Start a new game? This will reset all progress.")) {
-        console.log("New game button clicked");
         currentScene.resetToInitialState();
       }
     },
@@ -84,6 +105,20 @@ function initApp() {
       currentScene.loadState(autoSave);
     }, 500);
   }
+
+  // Listen for level completion events and switch to LevelTwo
+  window.addEventListener("levelComplete", (e: Event) => {
+    const ce = e as CustomEvent;
+    console.log("levelComplete event received", ce.detail);
+    // Only transition to LevelTwo when LevelOne completes
+    if (ce.detail?.level !== 1) return;
+    // Lazily import LevelTwo to avoid loading unless needed
+    import("./LevelTwo.ts").then((m) => {
+      const LevelTwo = (m as any).LevelTwo as typeof GameScene;
+      const next = new LevelTwo();
+      switchToScene(next);
+    }).catch((err) => console.error("Failed to load LevelTwo:", err));
+  });
 
   // Resize Handler
   globalThis.addEventListener("resize", () => {
