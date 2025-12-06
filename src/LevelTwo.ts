@@ -12,6 +12,13 @@ export class LevelTwo extends GameScene {
   private goal!: THREE.Mesh;
   private raycaster = new THREE.Raycaster();
   private centerPoint = new THREE.Vector2(0, 0);
+  // Puzzle: sequence plates + gate
+  private plates: THREE.Mesh[] = [];
+  private platePressed: boolean[] = [];
+  private targetSequence: number[] = [2, 0, 3, 1];
+  private sequenceIndex = 0;
+  private gate!: THREE.Mesh;
+  private gateBodyInWorld = true;
 
   constructor() {
     super();
@@ -75,7 +82,29 @@ export class LevelTwo extends GameScene {
       0x999999,
     );
 
-    // A goal cube to interact with
+    // Gate that blocks access to the goal until puzzle is solved
+    this.gate = this.createBody(
+      { x: 4, y: 2, z: 0.5 },
+      0,
+      new THREE.Vector3(0, 1, -4),
+      0x552200,
+    );
+
+    // Create four colored sequence plates in front of the gate
+    const plateColors = [0x3366ff, 0x33cc33, 0xcc3333, 0xffcc33];
+    const platePositions = [-3, -1, 1, 3];
+    for (let i = 0; i < 4; i++) {
+      const plate = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.2, 1.2),
+        new THREE.MeshStandardMaterial({ color: plateColors[i] }),
+      );
+      plate.position.set(platePositions[i], 0.1, -2);
+      this.plates.push(plate);
+      this.platePressed.push(false);
+      this.scene.add(plate);
+    }
+
+    // A goal cube to interact with (behind the gate)
     this.goal = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshStandardMaterial({ color: 0x00cc00 }),
@@ -91,6 +120,11 @@ export class LevelTwo extends GameScene {
     const dir = new THREE.DirectionalLight(0xffffff, 0.4);
     dir.position.set(5, 10, 5);
     this.scene.add(dir);
+
+    // Initial objective text describes the new puzzle
+    this.ui.showTopCenter(
+      "LEVEL 2: Solve the plate sequence to open the gate. Interact with plates in order.",
+    );
   }
 
   private setupInteractions() {
@@ -107,10 +141,72 @@ export class LevelTwo extends GameScene {
         obj !== this.playerMesh
       );
       const hits = this.raycaster.intersectObjects(objects);
-      if (hits.length > 0 && hits[0].object === this.goal) {
-        this.onGoalReached();
+      if (hits.length > 0) {
+        const hit = hits[0].object as THREE.Mesh;
+        // Plate interaction
+        const plateIndex = this.plates.indexOf(hit);
+        if (plateIndex >= 0) {
+          this.handlePlateInteraction(plateIndex);
+          return;
+        }
+        // Goal interaction (only reachable after gate opens)
+        if (hit === this.goal) {
+          this.onGoalReached();
+          return;
+        }
       }
     }
+  }
+
+  private handlePlateInteraction(index: number) {
+    // If already pressed, ignore
+    if (this.platePressed[index]) return;
+
+    const expected = this.targetSequence[this.sequenceIndex];
+    if (index === expected) {
+      // Correct plate
+      this.platePressed[index] = true;
+      (this.plates[index].material as THREE.MeshStandardMaterial).emissive =
+        new THREE.Color(0x222222);
+      this.sequenceIndex++;
+      this.ui.showMessage(`Good! (${this.sequenceIndex}/4)`);
+      this.ui.showTopCenter(
+        `Sequence Progress: ${"●".repeat(this.sequenceIndex)}${
+          "○".repeat(4 - this.sequenceIndex)
+        }`,
+      );
+      if (this.sequenceIndex >= this.targetSequence.length) {
+        this.onSequenceComplete();
+      }
+    } else {
+      // Wrong plate - reset
+      this.ui.showMessage("Wrong plate! Sequence reset.", 1500);
+      this.resetPlates();
+    }
+  }
+
+  private resetPlates() {
+    this.platePressed.fill(false);
+    for (const p of this.plates) {
+      (p.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(
+        0x000000,
+      );
+    }
+    this.sequenceIndex = 0;
+    this.ui.showTopCenter(
+      "LEVEL 2: Solve the plate sequence to open the gate. Interact with plates in order.",
+    );
+  }
+
+  private onSequenceComplete() {
+    this.ui.showMessage("Sequence complete! Gate opening...");
+    // Remove gate physics and hide mesh
+    if (this.gate.userData.physicsBody && this.gateBodyInWorld) {
+      this.physicsWorld.removeRigidBody(this.gate.userData.physicsBody);
+      this.gateBodyInWorld = false;
+    }
+    this.gate.visible = false;
+    this.ui.showTopCenter("Gate opened! Reach the green cube to finish.");
   }
 
   private onGoalReached() {
