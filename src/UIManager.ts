@@ -166,6 +166,10 @@ export class UIManager {
     this.overlay.remove();
     this.inventoryBox.remove();
     this.topLeftBox.remove();
+    // Ensure top-center objective text is removed as well
+    this.topCenterBox.remove();
+    // Remove save/load buttons panel if present
+    if (this.saveLoadButtons) this.saveLoadButtons.remove();
     this.batBox?.remove();
     this.interactButton?.remove();
   }
