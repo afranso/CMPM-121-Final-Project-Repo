@@ -14,6 +14,7 @@ export interface GameState {
     wrongLandings: number;
     blockSpawningEnabled: boolean;
     boardBroken: boolean;
+    boardHits: number;
   };
   batsCollected: number;
   keyVisible: boolean;

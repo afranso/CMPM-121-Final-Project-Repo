@@ -5,10 +5,13 @@ export class UIManager {
 
   // NEW UI PANELS
   private topLeftBox: HTMLDivElement;
-  private topRightBox: HTMLDivElement;
+  private topCenterBox: HTMLDivElement;
 
   // optional bar text for bat strength
   private batBox: HTMLDivElement | null = null;
+
+  private interactButton: HTMLButtonElement | null = null;
+  private saveLoadButtons: HTMLDivElement | null = null;
 
   private isDarkMode = false;
 
@@ -29,17 +32,17 @@ export class UIManager {
     this.topLeftBox.className = "ui-top-left";
     this.topLeftBox.textContent = "";
 
-    // NEW — TOP RIGHT CONTROL TEXT
-    this.topRightBox = document.createElement("div");
-    this.topRightBox.className = "ui-top-right";
-    this.topRightBox.textContent = "";
+    // NEW — TOP CENTER OBJECTIVE TEXT
+    this.topCenterBox = document.createElement("div");
+    this.topCenterBox.className = "ui-top-center";
+    this.topCenterBox.textContent = "";
 
     // APPEND ALL ELEMENTS
     this.overlay.appendChild(this.messageBox);
     document.body.appendChild(this.overlay);
     document.body.appendChild(this.inventoryBox);
     document.body.appendChild(this.topLeftBox);
-    document.body.appendChild(this.topRightBox);
+    document.body.appendChild(this.topCenterBox);
 
     this.updateInventory([]);
   }
@@ -49,18 +52,71 @@ export class UIManager {
     this.topLeftBox.textContent = text;
   }
 
-  // TOP RIGHT CONTROLS — NEW
-  public showTopRight(text: string) {
-    this.topRightBox.textContent = text;
+  // TOP CENTER OBJECTIVE — NEW
+  public showTopCenter(text: string) {
+    this.topCenterBox.textContent = text;
+  }
+
+  // Show standard game controls (reusable across all scenes)
+  public showStandardControls() {
+    this.topLeftBox.textContent =
+      "CONTROLS\n[MOVE]: WASD / Arrows / Left Joystick\n[LOOK]: Mouse / Right Joystick\n[ACTION]: Spacebar / Onscreen button\n(Mouse) - Click to lock, ESC to unlock.";
+  }
+
+  // Create save/load buttons UI with event handlers
+  public createSaveLoadButtons(
+    onSave: () => void,
+    onLoad: () => void,
+    onNewGame: () => void,
+  ): HTMLDivElement {
+    if (this.saveLoadButtons) return this.saveLoadButtons;
+
+    const div = document.createElement("div");
+    div.className = "ui-save-instructions";
+
+    const buttonContainer = document.createElement("div");
+    buttonContainer.className = "save-button-container";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "quick-save-btn";
+    saveBtn.textContent = "💾 Save";
+    saveBtn.addEventListener("click", onSave);
+
+    const loadBtn = document.createElement("button");
+    loadBtn.className = "quick-load-btn";
+    loadBtn.textContent = "📂 Load";
+    loadBtn.addEventListener("click", onLoad);
+
+    const newGameBtn = document.createElement("button");
+    newGameBtn.className = "new-game-btn";
+    newGameBtn.textContent = "🔄 New Game";
+    newGameBtn.addEventListener("click", onNewGame);
+
+    buttonContainer.appendChild(saveBtn);
+    buttonContainer.appendChild(loadBtn);
+    buttonContainer.appendChild(newGameBtn);
+    div.appendChild(buttonContainer);
+
+    document.body.appendChild(div);
+    this.saveLoadButtons = div;
+    return div;
   }
 
   // Add save/load instructions to controls
   public addSaveLoadInstructions() {
-    const currentText = this.topRightBox.textContent || "";
-    if (!currentText.includes("F5")) {
-      this.topRightBox.textContent = currentText +
-        "\n- F5: Save Menu\n- F9: Load Menu";
-    }
+    // No longer adding F5/F9 instructions
+  }
+
+  // On-screen interaction button for touch users.
+  public createInteractButton(onPress: () => void): HTMLButtonElement {
+    if (this.interactButton) return this.interactButton;
+    const btn = document.createElement("button");
+    btn.className = "ui-interact-btn";
+    btn.textContent = "[SPACE]";
+    btn.addEventListener("click", () => onPress());
+    document.body.appendChild(btn);
+    this.interactButton = btn;
+    return btn;
   }
 
   public showMessage(text: string, duration = 2000) {
@@ -110,8 +166,8 @@ export class UIManager {
     this.overlay.remove();
     this.inventoryBox.remove();
     this.topLeftBox.remove();
-    this.topRightBox.remove();
     this.batBox?.remove();
+    this.interactButton?.remove();
   }
 
   public showOverlay(title: string, message: string) {

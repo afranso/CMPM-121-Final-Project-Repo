@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./inputManager.ts";
 import { PlayerController } from "./playerController.ts";
 import { GameState } from "./saveManager.ts";
+import { UIManager } from "./UIManager.ts";
 
 export interface PhysicsObject {
   mesh: THREE.Mesh;
@@ -35,6 +36,8 @@ export abstract class GameScene {
       0.1,
       1000,
     );
+    // Set Euler order to YXZ for FPS-style camera controls (yaw, pitch, roll)
+    this.camera.rotation.order = "YXZ";
     this.clock = new THREE.Clock();
     this.inputManager = new InputManager();
     this.tmpTrans = new Ammo.btTransform();
@@ -180,6 +183,9 @@ export abstract class GameScene {
   public getCamera(): THREE.PerspectiveCamera {
     return this.camera;
   }
+
+  // UI Manager access - to be implemented by subclasses
+  public abstract getUI(): UIManager;
 
   // Save/Load methods to be implemented by subclasses
   public abstract saveState(): GameState;
