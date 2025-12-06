@@ -32,7 +32,7 @@ function initApp() {
     try {
       // Dispose old scene resources and its UI
       currentScene.getUI()?.dispose?.();
-    } catch (e) {
+    } catch (_e) {
       // ignore if UI already removed
     }
     currentScene.dispose();
@@ -107,15 +107,12 @@ function initApp() {
   }
 
   // Listen for level completion events and switch to LevelTwo
-  window.addEventListener("levelComplete", (e: Event) => {
+  globalThis.addEventListener("levelComplete", (e: Event) => {
     const ce = e as CustomEvent;
     console.log("levelComplete event received", ce.detail);
-    // Only transition to LevelTwo when LevelOne completes
     if (ce.detail?.level !== 1) return;
-    // Lazily import LevelTwo to avoid loading unless needed
     import("./LevelTwo.ts").then((m) => {
-      const LevelTwo = (m as any).LevelTwo as typeof GameScene;
-      const next = new LevelTwo();
+      const next = new m.LevelTwo();
       switchToScene(next);
     }).catch((err) => console.error("Failed to load LevelTwo:", err));
   });

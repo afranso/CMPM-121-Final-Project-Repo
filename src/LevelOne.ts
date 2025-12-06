@@ -615,7 +615,7 @@ export class LevelOne extends GameScene {
       try {
         const el = document.getElementById("game-over-overlay");
         if (el) el.remove();
-      } catch (err) {
+      } catch (_err) {
         // ignore DOM errors in non-browser environments
       }
     }, 2500);
