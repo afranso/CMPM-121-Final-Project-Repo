@@ -610,6 +610,15 @@ export class LevelOne extends GameScene {
       // ignore in non-browser or testing environments
       console.warn("Could not dispatch levelComplete event:", e);
     }
+    // Remove the overlay after a short delay so the next level becomes visible.
+    setTimeout(() => {
+      try {
+        const el = document.getElementById("game-over-overlay");
+        if (el) el.remove();
+      } catch (err) {
+        // ignore DOM errors in non-browser environments
+      }
+    }, 2500);
   }
 
   // Save current game state
