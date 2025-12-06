@@ -3,6 +3,23 @@ import { GameScene } from "./GameScene.ts";
 import { UIManager } from "./UIManager.ts";
 import { GameState } from "./saveManager.ts";
 
+const BASE_COLORS = {
+  LIGHT: {
+    WALL: 0x999999,
+    FLOOR: 0xdddddd,
+    PLATES: [0x3366ff, 0x33cc33, 0xcc3333, 0xffcc33],
+    GATE: 0x552200,
+    GOAL: 0x00cc00,
+  },
+  DARK: {
+    WALL: 0x222222,
+    FLOOR: 0x333333,
+    PLATES: [0x2244ff, 0x228822, 0x882222, 0x886622],
+    GATE: 0x553322,
+    GOAL: 0x228822,
+  },
+};
+
 /**
  * LevelTwo - a lightweight second level that demonstrates scene switching.
  * Objective: reach and interact with the green goal cube.
@@ -12,6 +29,10 @@ export class LevelTwo extends GameScene {
   private goal!: THREE.Mesh;
   private raycaster = new THREE.Raycaster();
   private centerPoint = new THREE.Vector2(0, 0);
+  // Theme/colors
+  private COLORS = BASE_COLORS.LIGHT;
+  private hemisphereLight!: THREE.HemisphereLight;
+  private directionalLight!: THREE.DirectionalLight;
   // Puzzle: sequence plates + gate
   private plates: THREE.Mesh[] = [];
   private platePressed: boolean[] = [];
@@ -27,6 +48,18 @@ export class LevelTwo extends GameScene {
     this.ui.showTopCenter(
       "LEVEL 2: Reach the green goal and interact to finish.",
     );
+
+    // Initialize theme from UI preference
+    this.COLORS = this.ui.isDark() ? BASE_COLORS.DARK : BASE_COLORS.LIGHT;
+
+    // Listen for system theme changes
+    const darkModeQuery = globalThis.matchMedia?.(
+      "(prefers-color-scheme: dark)",
+    );
+    darkModeQuery?.addEventListener("change", (e: MediaQueryListEvent) => {
+      this.COLORS = e.matches ? BASE_COLORS.DARK : BASE_COLORS.LIGHT;
+      this.updateVisualTheme();
+    });
 
     this.setupLevel();
     this.setupInteractions();
@@ -59,7 +92,7 @@ export class LevelTwo extends GameScene {
       { x: 20, y: 1, z: 20 },
       0,
       new THREE.Vector3(0, -0.5, 0),
-      0xdddddd,
+      this.COLORS.FLOOR,
     );
 
     // Walls
@@ -67,19 +100,19 @@ export class LevelTwo extends GameScene {
       { x: 0.5, y: 6, z: 20 },
       0,
       new THREE.Vector3(-10 + 0.25, 3, 0),
-      0x999999,
+      this.COLORS.WALL,
     );
     this.createBody(
       { x: 0.5, y: 6, z: 20 },
       0,
       new THREE.Vector3(10 - 0.25, 3, 0),
-      0x999999,
+      this.COLORS.WALL,
     );
     this.createBody(
       { x: 20, y: 6, z: 0.5 },
       0,
       new THREE.Vector3(0, 3, -10 + 0.25),
-      0x999999,
+      this.COLORS.WALL,
     );
 
     // Gate that blocks access to the goal until puzzle is solved
@@ -87,11 +120,11 @@ export class LevelTwo extends GameScene {
       { x: 4, y: 2, z: 0.5 },
       0,
       new THREE.Vector3(0, 1, -4),
-      0x552200,
+      this.COLORS.GATE,
     );
 
     // Create four colored sequence plates in front of the gate
-    const plateColors = [0x3366ff, 0x33cc33, 0xcc3333, 0xffcc33];
+    const plateColors = this.COLORS.PLATES;
     const platePositions = [-3, -1, 1, 3];
     for (let i = 0; i < 4; i++) {
       const plate = new THREE.Mesh(
@@ -107,19 +140,13 @@ export class LevelTwo extends GameScene {
     // A goal cube to interact with (behind the gate)
     this.goal = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0x00cc00 }),
+      new THREE.MeshStandardMaterial({ color: this.COLORS.GOAL }),
     );
     this.goal.position.set(0, 0.5, -8);
     this.scene.add(this.goal);
 
-    // Lighting
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-    hemi.position.set(0, 20, 0);
-    this.scene.add(hemi);
-
-    const dir = new THREE.DirectionalLight(0xffffff, 0.4);
-    dir.position.set(5, 10, 5);
-    this.scene.add(dir);
+    // Lighting (theme-aware)
+    this.setupLighting();
 
     // Initial objective text describes the new puzzle
     this.ui.showTopCenter(
@@ -129,6 +156,56 @@ export class LevelTwo extends GameScene {
 
   private setupInteractions() {
     this.ui.createInteractButton(() => this.inputManager.queueInteract());
+  }
+
+  private setupLighting() {
+    const isDark = this.COLORS === BASE_COLORS.DARK;
+
+    this.hemisphereLight = new THREE.HemisphereLight(
+      isDark ? 0x222244 : 0xffffff,
+      isDark ? 0x111111 : 0x444444,
+      isDark ? 0.3 : 0.6,
+    );
+    this.hemisphereLight.position.set(0, 20, 0);
+    this.scene.add(this.hemisphereLight);
+
+    this.directionalLight = new THREE.DirectionalLight(
+      isDark ? 0x666666 : 0xffffff,
+      isDark ? 0.2 : 0.4,
+    );
+    this.directionalLight.position.set(5, 10, 5);
+    this.scene.add(this.directionalLight);
+  }
+
+  private updateVisualTheme() {
+    const isDark = this.COLORS === BASE_COLORS.DARK;
+    if (this.hemisphereLight) {
+      this.hemisphereLight.color.set(isDark ? 0x222244 : 0xffffff);
+      this.hemisphereLight.groundColor.set(isDark ? 0x111111 : 0x444444);
+      this.hemisphereLight.intensity = isDark ? 0.3 : 0.6;
+    }
+    if (this.directionalLight) {
+      this.directionalLight.color.set(isDark ? 0x666666 : 0xffffff);
+      this.directionalLight.intensity = isDark ? 0.2 : 0.4;
+    }
+
+    // Update plates
+    this.plates.forEach((p, i) => {
+      const mat = p.material as THREE.MeshStandardMaterial;
+      mat.color.set(this.COLORS.PLATES[i]);
+    });
+
+    // Update gate and goal
+    if (this.gate) {
+      (this.gate.material as THREE.MeshStandardMaterial).color.set(
+        this.COLORS.GATE,
+      );
+    }
+    if (this.goal) {
+      (this.goal.material as THREE.MeshStandardMaterial).color.set(
+        this.COLORS.GOAL,
+      );
+    }
   }
 
   public override update() {
@@ -217,7 +294,7 @@ export class LevelTwo extends GameScene {
       (globalThis as unknown as Window).dispatchEvent(
         new CustomEvent("levelComplete", { detail: { level: 2 } }),
       );
-    } catch (e) {
+    } catch {
       // ignore in non-browser environments
     }
   }
