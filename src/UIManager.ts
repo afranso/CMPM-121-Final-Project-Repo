@@ -164,6 +164,9 @@ export class UIManager {
 
   public dispose() {
     this.overlay.remove();
+    // Remove any full-screen overlay created by `showOverlay`
+    const fullOverlay = document.getElementById("game-over-overlay");
+    if (fullOverlay) fullOverlay.remove();
     this.inventoryBox.remove();
     this.topLeftBox.remove();
     // Ensure top-center objective text is removed as well
@@ -190,5 +193,10 @@ export class UIManager {
 
     overlay.append(h1, pMessage, pSub);
     document.body.appendChild(overlay);
+    // Auto-remove overlay after 4 seconds to ensure it's not left behind
+    setTimeout(() => {
+      const el = document.getElementById("game-over-overlay");
+      if (el) el.remove();
+    }, 4000);
   }
 }

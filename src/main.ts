@@ -110,11 +110,17 @@ function initApp() {
   globalThis.addEventListener("levelComplete", (e: Event) => {
     const ce = e as CustomEvent;
     console.log("levelComplete event received", ce.detail);
-    if (ce.detail?.level !== 1) return;
-    import("./LevelTwo.ts").then((m) => {
-      const next = new m.LevelTwo();
-      switchToScene(next);
-    }).catch((err) => console.error("Failed to load LevelTwo:", err));
+    if (ce.detail?.level === 1) {
+      import("./LevelTwo.ts").then((m) => {
+        const next = new m.LevelTwo();
+        switchToScene(next);
+      }).catch((err) => console.error("Failed to load LevelTwo:", err));
+    } else if (ce.detail?.level === 3) {
+      import("./LevelThree.ts").then((m) => {
+        const next = new m.LevelThree();
+        switchToScene(next);
+      }).catch((err) => console.error("Failed to load LevelThree:", err));
+    }
   });
 
   // Resize Handler

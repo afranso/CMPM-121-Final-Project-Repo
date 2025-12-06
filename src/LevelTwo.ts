@@ -289,11 +289,13 @@ export class LevelTwo extends GameScene {
   private onGoalReached() {
     this.ui.showOverlay("🎉 LEVEL 2 COMPLETE 🎉", "You reached the goal!");
     this.inputManager.clear();
-    // notify global listeners (optional)
+    // Wait 4 seconds so the overlay is visible, then notify global listeners to load LevelThree
     try {
-      (globalThis as unknown as Window).dispatchEvent(
-        new CustomEvent("levelComplete", { detail: { level: 2 } }),
-      );
+      setTimeout(() => {
+        (globalThis as unknown as Window).dispatchEvent(
+          new CustomEvent("levelComplete", { detail: { level: 3 } }),
+        );
+      }, 4000);
     } catch {
       // ignore in non-browser environments
     }
