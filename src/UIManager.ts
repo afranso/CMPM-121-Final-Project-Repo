@@ -60,7 +60,7 @@ export class UIManager {
   // Show standard game controls (reusable across all scenes)
   public showStandardControls() {
     this.topLeftBox.textContent =
-      "CONTROLS\n[MOVE]: WASD / Arrows / Left Joystick\n[LOOK]: Mouse / Right Joystick\n[ACTION]: Spacebar / Onscreen button\n(Mouse) - Click to lock, ESC to unlock.";
+      "CONTROLS\n[MOVE]: WASD / Arrows / Left Joystick\n[LOOK]: Mouse / Right Joystick\n[ACTION]: Spacebar / Onscreen button\n[MOUSE LOCK]: Right click";
   }
 
   // Create save/load buttons UI with event handlers
@@ -189,7 +189,7 @@ export class UIManager {
 
     const pSub = document.createElement("p");
     pSub.className = "subtle";
-    pSub.textContent = "Refresh to play again";
+    //pSub.textContent = "Refresh to play again";
 
     overlay.append(h1, pMessage, pSub);
     document.body.appendChild(overlay);

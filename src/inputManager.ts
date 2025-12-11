@@ -274,10 +274,15 @@ class DesktopControls {
       this.keys.delete(e.key);
     });
 
-    document.addEventListener("mousedown", () => {
-      // Request pointer lock on any mouse button
-      if (!document.pointerLockElement) {
-        document.body.requestPointerLock?.();
+    document.addEventListener("mousedown", (e: MouseEvent) => {
+      // Right click to lock/unlock pointer
+      if (e.button === 2) {
+        if (document.pointerLockElement) {
+          document.exitPointerLock?.();
+        } else {
+          document.body.requestPointerLock?.();
+        }
+        e.preventDefault();
       }
     });
 
