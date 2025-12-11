@@ -152,6 +152,18 @@ export class SaveManager {
   }
 
   /**
+   * Remove all saved data, including auto-save.
+   */
+  public clearAllSaves(): void {
+    try {
+      localStorage.removeItem(SaveManager.STORAGE_KEY);
+      console.log("All save data cleared");
+    } catch (error) {
+      console.error("Failed to clear saves:", error);
+    }
+  }
+
+  /**
    * Perform auto-save
    */
   public autoSave(): boolean {

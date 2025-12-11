@@ -52,7 +52,8 @@ function initApp() {
       () => saveLoadUI.show("load"),
       () => {
         if (confirm("Start a new game? This will reset all progress.")) {
-          currentScene.resetToInitialState();
+          saveManager.clearAllSaves();
+          switchToScene(new LevelOne());
         }
       },
     );
@@ -84,7 +85,8 @@ function initApp() {
     () => saveLoadUI.show("load"),
     () => {
       if (confirm("Start a new game? This will reset all progress.")) {
-        currentScene.resetToInitialState();
+        saveManager.clearAllSaves();
+        switchToScene(new LevelOne());
       }
     },
   );
