@@ -33,6 +33,8 @@ export class LevelTwo extends GameScene {
   private COLORS = BASE_COLORS.LIGHT;
   private hemisphereLight!: THREE.HemisphereLight;
   private directionalLight!: THREE.DirectionalLight;
+  private floors: THREE.Mesh[] = [];
+  private walls: THREE.Mesh[] = [];
   // Puzzle: sequence plates + gate
   private plates: THREE.Mesh[] = [];
   private platePressed: boolean[] = [];
@@ -88,32 +90,34 @@ export class LevelTwo extends GameScene {
 
   private setupLevel() {
     // Floor
-    this.createBody(
+    const floor = this.createBody(
       { x: 20, y: 1, z: 20 },
       0,
       new THREE.Vector3(0, -0.5, 0),
       this.COLORS.FLOOR,
     );
+    this.floors.push(floor);
 
     // Walls
-    this.createBody(
+    const leftWall = this.createBody(
       { x: 0.5, y: 6, z: 20 },
       0,
       new THREE.Vector3(-10 + 0.25, 3, 0),
       this.COLORS.WALL,
     );
-    this.createBody(
+    const rightWall = this.createBody(
       { x: 0.5, y: 6, z: 20 },
       0,
       new THREE.Vector3(10 - 0.25, 3, 0),
       this.COLORS.WALL,
     );
-    this.createBody(
+    const backWall = this.createBody(
       { x: 20, y: 6, z: 0.5 },
       0,
       new THREE.Vector3(0, 3, -10 + 0.25),
       this.COLORS.WALL,
     );
+    this.walls.push(leftWall, rightWall, backWall);
 
     // Gate that blocks access to the goal until puzzle is solved
     this.gate = this.createBody(
@@ -188,6 +192,15 @@ export class LevelTwo extends GameScene {
       this.directionalLight.color.set(isDark ? 0x666666 : 0xffffff);
       this.directionalLight.intensity = isDark ? 0.2 : 0.4;
     }
+
+    this.floors.forEach((mesh) => {
+      const mat = mesh.material as THREE.MeshPhongMaterial;
+      mat.color.set(this.COLORS.FLOOR);
+    });
+    this.walls.forEach((mesh) => {
+      const mat = mesh.material as THREE.MeshPhongMaterial;
+      mat.color.set(this.COLORS.WALL);
+    });
 
     // Update plates
     this.plates.forEach((p, i) => {

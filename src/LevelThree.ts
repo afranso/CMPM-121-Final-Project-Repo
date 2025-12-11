@@ -68,6 +68,8 @@ export class LevelThree extends GameScene {
   private COLORS = BASE_COLORS.LIGHT;
   private hemisphereLight!: THREE.HemisphereLight;
   private directionalLight!: THREE.DirectionalLight;
+  private floors: THREE.Mesh[] = [];
+  private walls: THREE.Mesh[] = [];
 
   constructor() {
     super();
@@ -243,6 +245,19 @@ export class LevelThree extends GameScene {
     this.directionalLight.color.set(isDark ? 0x666666 : 0xffffff);
     this.directionalLight.intensity = isDark ? 0.2 : 0.6;
 
+    this.floors.forEach((mesh) => {
+      const material = mesh.material as THREE.MeshPhongMaterial;
+      material.color.set(this.COLORS.FLOOR);
+    });
+    this.walls.forEach((mesh) => {
+      const material = mesh.material as THREE.MeshPhongMaterial;
+      material.color.set(this.COLORS.WALL);
+    });
+    this.breakableBoxes.forEach((box) => {
+      const material = box.material as THREE.MeshPhongMaterial;
+      material.color.set(this.COLORS.BOARD);
+    });
+
     // Update object colors
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
@@ -263,57 +278,61 @@ export class LevelThree extends GameScene {
   }
 
   private createRoom(zOffset: number, hasDoor: boolean) {
-    this.createBody(
+    const floor = this.createBody(
       { x: CONSTANTS.ROOM_WIDTH, y: 1, z: CONSTANTS.ROOM_WIDTH },
       0,
       new THREE.Vector3(0, -0.5, zOffset),
       this.COLORS.FLOOR,
     );
+    this.floors.push(floor);
 
     const W = CONSTANTS.ROOM_WIDTH;
     const H = CONSTANTS.WALL_HEIGHT;
     const T = CONSTANTS.WALL_THICKNESS;
 
     if (!(hasDoor && zOffset === 0)) {
-      this.createBody(
+      const back = this.createBody(
         { x: W, y: H, z: T },
         0,
         new THREE.Vector3(0, 3, zOffset - 10 + 0.25),
         this.COLORS.WALL,
       );
+      this.walls.push(back);
     }
-    this.createBody(
+    const left = this.createBody(
       { x: T, y: H, z: W },
       0,
       new THREE.Vector3(-10 + 0.25, 3, zOffset),
       this.COLORS.WALL,
     );
-    this.createBody(
+    const right = this.createBody(
       { x: T, y: H, z: W },
       0,
       new THREE.Vector3(10 - 0.25, 3, zOffset),
       this.COLORS.WALL,
     );
+    this.walls.push(left, right);
 
     if (hasDoor) {
-      this.createBody(
+      const wallA = this.createBody(
         { x: 9, y: 6, z: 0.5 },
         0,
         new THREE.Vector3(-5.5, 3, CONSTANTS.DOOR_Z),
         this.COLORS.WALL,
       );
-      this.createBody(
+      const wallB = this.createBody(
         { x: 9, y: 6, z: 0.5 },
         0,
         new THREE.Vector3(5.5, 3, CONSTANTS.DOOR_Z),
         this.COLORS.WALL,
       );
-      this.createBody(
+      const wallTop = this.createBody(
         { x: 2, y: 3, z: 0.5 },
         0,
         new THREE.Vector3(0, 4.5, CONSTANTS.DOOR_Z),
         this.COLORS.WALL,
       );
+      this.walls.push(wallA, wallB, wallTop);
     }
   }
 
