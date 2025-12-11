@@ -607,11 +607,6 @@ export class LevelOne extends GameScene {
     this.blockTimeouts.set(block, timeoutId);
   }
 
-  private releaseBlock(block: THREE.Mesh) {
-    // Simply mark as not in use - the block will be hidden on timeout
-    this.blocksInUse.delete(block);
-  }
-
   public override update() {
     super.update();
     this.raycastUpdateMarkerFromCenter();
@@ -778,46 +773,6 @@ export class LevelOne extends GameScene {
     setTimeout(() => {
       this.isResetting = false;
     }, 100);
-  }
-
-  private resetLevel() {
-    this.ui.showMessage("3 Misses! Level Reset!", 3000);
-    this.state.wrongLandings = 0;
-    this.state.blockSpawningEnabled = true;
-
-    // Reset blocks to hidden position
-    this.blocksInUse.clear();
-    for (const block of this.blocks) {
-      block.position.copy(this.BLOCK_HIDDEN_POSITION);
-      block.visible = false;
-      const body = this.blockBodies.get(block);
-      if (body) {
-        const transform = new Ammo.btTransform();
-        transform.setIdentity();
-        transform.setOrigin(
-          new Ammo.btVector3(
-            this.BLOCK_HIDDEN_POSITION.x,
-            this.BLOCK_HIDDEN_POSITION.y,
-            this.BLOCK_HIDDEN_POSITION.z,
-          ),
-        );
-        body.setWorldTransform(transform);
-        body.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
-        body.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
-      }
-    }
-
-    this.keyMesh.visible = false;
-
-    const startPos = new THREE.Vector3(0, 0.9, 5);
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
-    this.playerBody.setWorldTransform(transform);
-    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
-    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
-    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
-    this.camera.lookAt(0, 1, 0);
   }
 
   public override dispose() {
