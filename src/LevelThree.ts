@@ -917,35 +917,4 @@ export class LevelThree extends GameScene {
 
     this.ui.showMessage("Game loaded successfully!", 2000);
   }
-
-  // Reset to initial game state
-  public resetToInitialState(): void {
-    // Reset player position
-    const startPos = new THREE.Vector3(0, 0.9, 5);
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
-    this.playerBody.setWorldTransform(transform);
-    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
-    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
-
-    // Reset camera
-    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
-    this.camera.lookAt(0, 1, 0);
-
-    // Clear inventory
-    // Give the player 3 bats at new-game start
-    this.batCount = 3;
-    this.hasMetalBat = false;
-    this.inventory = this.inventory.filter((i) => !i.startsWith("Bat"));
-    this.inventory.push(`Bat x${this.batCount}`);
-    this.ui.updateInventory(this.inventory);
-
-    // Reset game state
-    this.state = {
-      doorOpened: false,
-    };
-
-    this.ui.showMessage("New game started!", 2000);
-  }
 }

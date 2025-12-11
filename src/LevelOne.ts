@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 import { UIManager } from "./UIManager.ts";
-import { BlockPool, PooledBlock } from "./objectPool.ts";
 import { GameState } from "./saveManager.ts";
 
 const BASE_COLORS = {
@@ -62,14 +61,13 @@ export class LevelOne extends GameScene {
     boardHits: 0,
   };
 
-  private blocks: Array<{
-    mesh: THREE.Mesh;
-    body: Ammo.btRigidBody;
-    pooled?: PooledBlock;
-    handled: boolean;
-  }> = [];
-
-  private blockPool!: BlockPool;
+  private blocks: THREE.Mesh[] = [];
+  private blockBodies: Map<THREE.Mesh, Ammo.btRigidBody> = new Map();
+  private blocksInUse: Set<THREE.Mesh> = new Set();
+  private blocksEvaluated: Set<THREE.Mesh> = new Set();
+  private blockTimeouts: Map<THREE.Mesh, number> = new Map();
+  private isResetting = false;
+  private readonly BLOCK_HIDDEN_POSITION = new THREE.Vector3(0, -100, 0);
   private COLORS = BASE_COLORS.LIGHT;
   private hemisphereLight!: THREE.HemisphereLight;
   private directionalLight!: THREE.DirectionalLight;
@@ -91,8 +89,6 @@ export class LevelOne extends GameScene {
       this.COLORS = e.matches ? BASE_COLORS.DARK : BASE_COLORS.LIGHT;
       this.updateVisualTheme();
     });
-
-    this.blockPool = new BlockPool(this.physicsWorld, this.scene, 25);
 
     this.setupLevel();
     this.setupInteractions();
@@ -137,6 +133,7 @@ export class LevelOne extends GameScene {
 
     this.createBats(); // 3 bats
     this.createBoard();
+    this.createStaticBlocks(); // Create the 3 static blocks
 
     this.setupLighting();
   }
@@ -349,6 +346,50 @@ export class LevelOne extends GameScene {
     this.scene.add(this.board);
   }
 
+  private createStaticBlocks() {
+    // Create 3 persistent blocks that will be reused throughout the level
+    for (let i = 0; i < 3; i++) {
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshPhongMaterial({
+        color: Math.random() * 0xffffff,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(this.BLOCK_HIDDEN_POSITION);
+      this.scene.add(mesh);
+
+      // Create physics body
+      const transform = new Ammo.btTransform();
+      transform.setIdentity();
+      transform.setOrigin(
+        new Ammo.btVector3(
+          this.BLOCK_HIDDEN_POSITION.x,
+          this.BLOCK_HIDDEN_POSITION.y,
+          this.BLOCK_HIDDEN_POSITION.z,
+        ),
+      );
+
+      const motionState = new Ammo.btDefaultMotionState(transform);
+      const shape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));
+      const localInertia = new Ammo.btVector3(0, 0, 0);
+      const mass = 1;
+      shape.calculateLocalInertia(mass, localInertia);
+      const rbInfo = new Ammo.btRigidBodyConstructionInfo(
+        mass,
+        motionState,
+        shape,
+        localInertia,
+      );
+      const body = new Ammo.btRigidBody(rbInfo);
+      this.physicsWorld.addRigidBody(body);
+
+      mesh.userData.physicsBody = body;
+      this.blocks.push(mesh);
+      this.blockBodies.set(mesh, body);
+      this.allBodies.push({ mesh, body });
+      this.physicsObjects.push({ mesh, body });
+    }
+  }
+
   private setupInteractions() {
     this.ui.createInteractButton(() => {
       this.inputManager.queueInteract();
@@ -496,41 +537,79 @@ export class LevelOne extends GameScene {
       this.ui.showMessage("Cannot spawn here.");
       return;
     }
-    const spawnPos = pos.clone().setY(5);
-    const pooled = this.blockPool.acquire(spawnPos, Math.random() * 0xffffff);
-    if (!pooled) {
-      this.ui.showMessage("Block pool exhausted.");
+
+    // Find an available block (one not currently in use)
+    let blockToSpawn: THREE.Mesh | null = null;
+    for (const block of this.blocks) {
+      if (!this.blocksInUse.has(block)) {
+        blockToSpawn = block;
+        break;
+      }
+    }
+
+    if (!blockToSpawn) {
+      this.ui.showMessage("All blocks in use.");
       return;
     }
-    if (!this.allBodies.some((po) => po.mesh === pooled.mesh)) {
-      this.allBodies.push({ mesh: pooled.mesh, body: pooled.body });
+
+    // Clear any existing timeout for this block
+    const existingTimeout = this.blockTimeouts.get(blockToSpawn);
+    if (existingTimeout !== undefined) {
+      clearTimeout(existingTimeout);
+      this.blockTimeouts.delete(blockToSpawn);
     }
-    if (!this.physicsObjects.some((po) => po.mesh === pooled.mesh)) {
-      this.physicsObjects.push({ mesh: pooled.mesh, body: pooled.body });
-    }
-    const blockData = {
-      mesh: pooled.mesh,
-      body: pooled.body,
-      pooled,
-      handled: false,
-    };
-    this.blocks.push(blockData);
-    setTimeout(() => {
-      this.releaseBlock(blockData);
+
+    // Move block to spawn position and mark as in use
+    const spawnPos = pos.clone().setY(5);
+    blockToSpawn.position.copy(spawnPos);
+    blockToSpawn.visible = true;
+    this.blocksInUse.add(blockToSpawn);
+
+    // Reset physics state
+    const body = this.blockBodies.get(blockToSpawn)!;
+    const transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(
+      new Ammo.btVector3(spawnPos.x, spawnPos.y, spawnPos.z),
+    );
+    body.setWorldTransform(transform);
+    body.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+    body.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+
+    // Store the block reference for the timeout
+    const block = blockToSpawn;
+
+    // Auto-hide block after 6 seconds
+    const timeoutId = setTimeout(() => {
+      this.blockTimeouts.delete(block);
+      if (this.blocksInUse.has(block)) {
+        this.blocksInUse.delete(block);
+        block.position.copy(this.BLOCK_HIDDEN_POSITION);
+        block.visible = false;
+        const body = this.blockBodies.get(block);
+        if (body) {
+          const transform = new Ammo.btTransform();
+          transform.setIdentity();
+          transform.setOrigin(
+            new Ammo.btVector3(
+              this.BLOCK_HIDDEN_POSITION.x,
+              this.BLOCK_HIDDEN_POSITION.y,
+              this.BLOCK_HIDDEN_POSITION.z,
+            ),
+          );
+          body.setWorldTransform(transform);
+          body.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+          body.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+        }
+      }
     }, 6000);
+
+    this.blockTimeouts.set(block, timeoutId);
   }
 
-  private releaseBlock(block: {
-    mesh: THREE.Mesh;
-    body: Ammo.btRigidBody;
-    pooled?: PooledBlock;
-    handled: boolean;
-  }) {
-    if (block.pooled) this.blockPool.release(block.pooled);
-    this.blocks = this.blocks.filter((b) => b !== block);
-    this.physicsObjects = this.physicsObjects.filter((po) =>
-      po.mesh !== block.mesh
-    );
+  private releaseBlock(block: THREE.Mesh) {
+    // Simply mark as not in use - the block will be hidden on timeout
+    this.blocksInUse.delete(block);
   }
 
   public override update() {
@@ -554,18 +633,27 @@ export class LevelOne extends GameScene {
   }
 
   private checkBlockPuzzles() {
-    this.blocks.forEach((b) => {
-      if (b.handled) return;
-      const vel = b.body.getLinearVelocity();
+    // Don't check blocks while resetting
+    if (this.isResetting) return;
+
+    this.blocks.forEach((block) => {
+      // Skip blocks that have already been evaluated or aren't visible
+      if (this.blocksEvaluated.has(block) || !block.visible) return;
+
+      const body = this.blockBodies.get(block);
+      if (!body) return;
+
+      const vel = body.getLinearVelocity();
       // Check all velocity components to ensure block has truly settled
       const isSettled = Math.abs(vel.x()) < 0.1 &&
         Math.abs(vel.y()) < 0.1 &&
         Math.abs(vel.z()) < 0.1;
 
-      if (isSettled && b.mesh.position.y < 2.0) {
-        // Block has settled on the ground
-        b.handled = true;
-        if (b.mesh.position.distanceTo(CONSTANTS.BUTTON_POS) < 1.0) {
+      if (isSettled && block.position.y < 2.0 && this.blocksInUse.has(block)) {
+        // Block has settled on the ground - mark as evaluated so it only counts once
+        this.blocksEvaluated.add(block);
+
+        if (block.position.distanceTo(CONSTANTS.BUTTON_POS) < 1.0) {
           this.keyMesh.visible = true;
           this.state.blockSpawningEnabled = false;
           this.ui.showMessage("Key Spawned!");
@@ -573,11 +661,123 @@ export class LevelOne extends GameScene {
           this.state.wrongLandings++;
           this.ui.showMessage(`Missed! (${this.state.wrongLandings}/3)`);
           if (this.state.wrongLandings >= 3) {
-            this.resetLevel();
+            this.resetGameState();
           }
         }
       }
     });
+  }
+
+  private resetGameState() {
+    // Prevent further block checks during reset
+    this.isResetting = true;
+
+    // Reset all game state and player position
+    this.ui.showMessage("3 Misses! Level Reset!", 3000);
+
+    // Reset state flags
+    this.state = {
+      doorOpened: false,
+      chestOpened: false,
+      wrongLandings: 0,
+      blockSpawningEnabled: true,
+      boardBroken: false,
+      boardHits: 0,
+    };
+
+    // Clear inventory
+    this.inventory = [];
+    this.ui.updateInventory(this.inventory);
+
+    // Reset bat count
+    this.batCount = 0;
+
+    // Reset key visibility
+    this.keyMesh.visible = false;
+
+    // Reset board
+    this.board.visible = true;
+
+    // Reset bats visibility
+    this.bats.forEach((bat) => {
+      bat.visible = true;
+    });
+
+    // Reset door
+    this.doorMesh.visible = true;
+    this.doorMesh.position.set(0, 1.5, CONSTANTS.DOOR_Z);
+    if (this.doorMesh.userData.physicsBody && !this.doorBodyInWorld) {
+      this.physicsWorld.addRigidBody(this.doorMesh.userData.physicsBody);
+      this.doorBodyInWorld = true;
+    }
+    if (this.doorMesh.userData.physicsBody) {
+      const doorBody = this.doorMesh.userData.physicsBody as Ammo.btRigidBody;
+      const doorTransform = new Ammo.btTransform();
+      doorTransform.setIdentity();
+      doorTransform.setOrigin(new Ammo.btVector3(0, 1.5, CONSTANTS.DOOR_Z));
+      doorBody.setWorldTransform(doorTransform);
+    }
+
+    // Reset chest appearance
+    if (this.chest) {
+      (this.chest.material as THREE.MeshStandardMaterial).color.set(
+        this.COLORS.CHEST,
+      );
+      this.chest.scale.set(1, 1, 1);
+    }
+
+    // Clear all spawned blocks and move them back to hidden position
+    this.blocksInUse.clear();
+    this.blocksEvaluated.clear();
+
+    // Clear all pending timeouts
+    for (const [_block, timeoutId] of this.blockTimeouts.entries()) {
+      clearTimeout(timeoutId);
+    }
+    this.blockTimeouts.clear();
+
+    for (const block of this.blocks) {
+      block.position.copy(this.BLOCK_HIDDEN_POSITION);
+      block.visible = false;
+      const body = this.blockBodies.get(block);
+      if (body) {
+        const transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(
+          new Ammo.btVector3(
+            this.BLOCK_HIDDEN_POSITION.x,
+            this.BLOCK_HIDDEN_POSITION.y,
+            this.BLOCK_HIDDEN_POSITION.z,
+          ),
+        );
+        body.setWorldTransform(transform);
+        body.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+        body.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+      }
+    }
+
+    // Reset player position
+    const startPos = new THREE.Vector3(0, 0.9, 5);
+    const transform = new Ammo.btTransform();
+    transform.setIdentity();
+    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
+    this.playerBody.setWorldTransform(transform);
+    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+
+    // Reset camera
+    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
+    this.camera.lookAt(0, 1, 0);
+
+    // Reset UI state
+    this.ui.showTopCenter(
+      "CURRENT OBJECTIVE:\nCollect all 3 bats to break the barricade.",
+    );
+
+    // Re-enable block checking after a short delay to ensure physics has updated
+    setTimeout(() => {
+      this.isResetting = false;
+    }, 100);
   }
 
   private resetLevel() {
@@ -585,10 +785,27 @@ export class LevelOne extends GameScene {
     this.state.wrongLandings = 0;
     this.state.blockSpawningEnabled = true;
 
-    for (const b of this.blocks) {
-      if (b.pooled) this.blockPool.release(b.pooled);
+    // Reset blocks to hidden position
+    this.blocksInUse.clear();
+    for (const block of this.blocks) {
+      block.position.copy(this.BLOCK_HIDDEN_POSITION);
+      block.visible = false;
+      const body = this.blockBodies.get(block);
+      if (body) {
+        const transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin(
+          new Ammo.btVector3(
+            this.BLOCK_HIDDEN_POSITION.x,
+            this.BLOCK_HIDDEN_POSITION.y,
+            this.BLOCK_HIDDEN_POSITION.z,
+          ),
+        );
+        body.setWorldTransform(transform);
+        body.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
+        body.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
+      }
     }
-    this.blocks.length = 0;
 
     this.keyMesh.visible = false;
 
@@ -605,11 +822,16 @@ export class LevelOne extends GameScene {
 
   public override dispose() {
     super.dispose();
-    for (const b of this.blocks) {
-      if (b.pooled) this.blockPool.release(b.pooled);
+    // Clear all pending timeouts
+    for (const timeoutId of this.blockTimeouts.values()) {
+      clearTimeout(timeoutId);
     }
+    // Blocks will be cleaned up by physics world disposal
     this.blocks.length = 0;
-    this.blockPool.dispose();
+    this.blocksInUse.clear();
+    this.blocksEvaluated.clear();
+    this.blockBodies.clear();
+    this.blockTimeouts.clear();
   }
 
   private gameOver() {
@@ -731,82 +953,5 @@ export class LevelOne extends GameScene {
     }
 
     this.ui.showMessage("Game loaded successfully!", 2000);
-  }
-
-  // Reset to initial game state
-  public resetToInitialState(): void {
-    // Reset player position
-    const startPos = new THREE.Vector3(0, 0.9, 5);
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
-    this.playerBody.setWorldTransform(transform);
-    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
-    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
-
-    // Reset camera
-    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
-    this.camera.lookAt(0, 1, 0);
-
-    // Clear inventory
-    this.inventory = [];
-    this.ui.updateInventory(this.inventory);
-
-    // Reset game state
-    this.state = {
-      doorOpened: false,
-      chestOpened: false,
-      wrongLandings: 0,
-      blockSpawningEnabled: true,
-      boardBroken: false,
-      boardHits: 0,
-    };
-
-    // Reset bat count
-    this.batCount = 0;
-
-    // Reset key visibility
-    this.keyMesh.visible = false;
-
-    // Reset all bats visibility
-    this.bats.forEach((bat) => {
-      bat.visible = true;
-    });
-
-    // Reset door - re-add to physics world if it was removed
-    this.doorMesh.visible = true;
-    this.doorMesh.position.set(0, 1.5, CONSTANTS.DOOR_Z);
-    if (this.doorMesh.userData.physicsBody) {
-      const doorBody = this.doorMesh.userData.physicsBody as Ammo.btRigidBody;
-
-      // Only add to physics world if it's not already there
-      if (!this.doorBodyInWorld) {
-        this.physicsWorld.addRigidBody(doorBody);
-        this.doorBodyInWorld = true;
-      }
-
-      // Reset door transform to original position
-      const doorTransform = new Ammo.btTransform();
-      doorTransform.setIdentity();
-      doorTransform.setOrigin(new Ammo.btVector3(0, 1.5, CONSTANTS.DOOR_Z));
-      doorBody.setWorldTransform(doorTransform);
-    }
-
-    // Reset chest appearance
-    if (this.chest) {
-      (this.chest.material as THREE.MeshStandardMaterial).color.set(0x8B4513);
-      this.chest.scale.set(1, 1, 1);
-    }
-
-    // Reset board
-    this.board.visible = true;
-
-    // Clear all spawned blocks
-    for (const b of this.blocks) {
-      if (b.pooled) this.blockPool.release(b.pooled);
-    }
-    this.blocks.length = 0;
-
-    this.ui.showMessage("New game started!", 2000);
   }
 }

@@ -360,25 +360,4 @@ export class LevelTwo extends GameScene {
 
     this.ui.showMessage("Game loaded into Level 2", 2000);
   }
-
-  public resetToInitialState(): void {
-    // Reset player
-    const startPos = new THREE.Vector3(0, 0.9, 5);
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(startPos.x, startPos.y, startPos.z));
-    this.playerBody.setWorldTransform(transform);
-    this.playerBody.setLinearVelocity(new Ammo.btVector3(0, 0, 0));
-    this.playerBody.setAngularVelocity(new Ammo.btVector3(0, 0, 0));
-
-    this.camera.position.set(startPos.x, startPos.y + 0.5, startPos.z);
-    this.camera.lookAt(0, 1, 0);
-
-    this.ui.showMessage("New game started (Level 2)", 1500);
-  }
-
-  public override dispose() {
-    super.dispose();
-    this.ui.dispose();
-  }
 }
