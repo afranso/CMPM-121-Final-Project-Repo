@@ -255,56 +255,75 @@ class DesktopControls {
   private mouseDelta = new THREE.Vector2();
   private mousePosition = new THREE.Vector2();
   private lastMousePosition = new THREE.Vector2();
+  private readonly useCapture = true;
+
+  private readonly keyDownHandler = (e: KeyboardEvent) => {
+    this.keys.add(e.key);
+
+    // ESC unlocks pointer
+    if (e.key === "Escape") {
+      document.exitPointerLock?.();
+    }
+  };
+
+  private readonly keyUpHandler = (e: KeyboardEvent) => {
+    this.keys.delete(e.key);
+  };
+
+  private readonly togglePointerLock = (e: MouseEvent) => {
+    if (e.button !== 2) return;
+    e.preventDefault();
+    if (document.pointerLockElement) {
+      document.exitPointerLock?.();
+    } else {
+      document.body.requestPointerLock?.();
+    }
+  };
+
+  private readonly mouseMoveHandler = (e: MouseEvent) => {
+    // Update normalized position for raycasting
+    const newX = (e.clientX / globalThis.innerWidth) * 2 - 1;
+    const newY = -(e.clientY / globalThis.innerHeight) * 2 + 1;
+    this.mousePosition.set(newX, newY);
+
+    // Only allow camera movement when pointer is locked
+    if (document.pointerLockElement) {
+      this.mouseDelta.x += e.movementX;
+      this.mouseDelta.y += e.movementY;
+    }
+
+    // Update last position for raycasting continuity
+    this.lastMousePosition.set(newX, newY);
+  };
+
+  private readonly contextMenuHandler = (e: MouseEvent) => {
+    e.preventDefault();
+  };
+
+  private readonly pointerLockChangeHandler = () => {
+    if (!document.pointerLockElement) {
+      this.mouseDelta.set(0, 0);
+    }
+  };
 
   constructor() {
     this.setupListeners();
   }
 
   private setupListeners() {
-    document.addEventListener("keydown", (e: KeyboardEvent) => {
-      this.keys.add(e.key);
-
-      // ESC unlocks pointer
-      if (e.key === "Escape") {
-        document.exitPointerLock?.();
-      }
-    });
-
-    document.addEventListener("keyup", (e: KeyboardEvent) => {
-      this.keys.delete(e.key);
-    });
-
-    document.addEventListener("mousedown", (e: MouseEvent) => {
-      // Right click to lock/unlock pointer
-      if (e.button === 2) {
-        if (document.pointerLockElement) {
-          document.exitPointerLock?.();
-        } else {
-          document.body.requestPointerLock?.();
-        }
-        e.preventDefault();
-      }
-    });
-
-    document.addEventListener("mousemove", (e: MouseEvent) => {
-      // Update normalized position for raycasting
-      const newX = (e.clientX / globalThis.innerWidth) * 2 - 1;
-      const newY = -(e.clientY / globalThis.innerHeight) * 2 + 1;
-      this.mousePosition.set(newX, newY);
-
-      // Only allow camera movement when pointer is locked
-      if (document.pointerLockElement) {
-        this.mouseDelta.x += e.movementX;
-        this.mouseDelta.y += e.movementY;
-      }
-
-      // Update last position for raycasting continuity
-      this.lastMousePosition.set(newX, newY);
-    });
-
-    document.addEventListener("contextmenu", (e: MouseEvent) => {
-      e.preventDefault();
-    });
+    document.addEventListener("keydown", this.keyDownHandler);
+    document.addEventListener("keyup", this.keyUpHandler);
+    document.addEventListener(
+      "mousedown",
+      this.togglePointerLock,
+      this.useCapture,
+    );
+    document.addEventListener("mousemove", this.mouseMoveHandler);
+    document.addEventListener("contextmenu", this.contextMenuHandler);
+    document.addEventListener(
+      "pointerlockchange",
+      this.pointerLockChangeHandler,
+    );
   }
 
   public getMovementVector(): THREE.Vector2 {
@@ -346,6 +365,22 @@ class DesktopControls {
     this.keys.clear();
     this.mouseDelta.set(0, 0);
   }
+
+  public dispose() {
+    document.removeEventListener("keydown", this.keyDownHandler);
+    document.removeEventListener("keyup", this.keyUpHandler);
+    document.removeEventListener(
+      "mousedown",
+      this.togglePointerLock,
+      this.useCapture,
+    );
+    document.removeEventListener("mousemove", this.mouseMoveHandler);
+    document.removeEventListener("contextmenu", this.contextMenuHandler);
+    document.removeEventListener(
+      "pointerlockchange",
+      this.pointerLockChangeHandler,
+    );
+  }
 }
 
 // Main InputManager that coordinates both control schemes
@@ -367,6 +402,7 @@ export class InputManager {
   }
 
   public dispose() {
+    this.desktopControls.dispose();
     this.touchControls.dispose();
   }
 
