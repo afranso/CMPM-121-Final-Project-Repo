@@ -157,36 +157,6 @@ export class LevelThree extends GameScene {
   }
 
   // Attempt to craft a metal bat when player presses F near the table
-  private attemptCraftMetalBat() {
-    if (!this.craftTable) return;
-    const camPos = this.camera.position;
-    const dist = camPos.distanceTo(this.craftTable.position);
-    if (dist > 3) {
-      this.ui.showMessage("Stand closer to the table to craft.", 1500);
-      return;
-    }
-
-    if (this.batCount >= 3 && !this.hasMetalBat) {
-      // Consume bats and give metal bat
-      this.batCount = 0;
-      this.hasMetalBat = true;
-      // Update inventory UI to show Metal Bat
-      this.inventory = this.inventory.filter((i) => !i.startsWith("Bat"));
-      this.inventory.push("Metal Bat");
-      this.ui.updateInventory(this.inventory);
-      this.ui.setBatStrength(100);
-      this.ui.showMessage("Crafted Metal Bat! Press [SPACE] to strike.", 2500);
-      // Update objective to instruct player to destroy boxes and find the key
-      this.ui.showTopCenter(
-        "CURRENT OBJECTIVE:\nDestroy the boxes for to find the key",
-      );
-    } else if (this.hasMetalBat) {
-      this.ui.showMessage("You already have a Metal Bat.", 1500);
-    } else {
-      this.ui.showMessage("You need 3 bats to craft a Metal Bat.", 1500);
-    }
-  }
-
   // Handle attacking breakable boxes with the metal bat (triggered by Space)
   private handleAttack() {
     if (!this.hasMetalBat) return;
@@ -614,6 +584,46 @@ export class LevelThree extends GameScene {
       }
     }
 
+    // If player is pointing at the craft table, attempt to craft a Metal Bat
+    const craftHit = this.craftTable &&
+      intersects.find((i) =>
+        i.object === this.craftTable || i.object.parent === this.craftTable
+      );
+    if (craftHit) {
+      const camPos = this.camera.position;
+      const dist = camPos.distanceTo(this.craftTable.position);
+      if (dist > 3) {
+        this.ui.showMessage("Stand closer to the table to craft.", 1500);
+        return true;
+      }
+
+      if (this.batCount >= 3 && !this.hasMetalBat) {
+        // Consume bats and give metal bat
+        this.batCount = 0;
+        this.hasMetalBat = true;
+        // Update inventory UI to show Metal Bat
+        this.inventory = this.inventory.filter((i) => !i.startsWith("Bat"));
+        this.inventory.push("Metal Bat");
+        this.ui.updateInventory(this.inventory);
+        this.ui.setBatStrength(100);
+        this.ui.showMessage(
+          "Crafted Metal Bat! Press [SPACE] to strike.",
+          2500,
+        );
+        // Update objective to instruct player to destroy boxes and find the key
+        this.ui.showTopCenter(
+          "CURRENT OBJECTIVE:\nDestroy the boxes for to find the key",
+        );
+        return true;
+      } else if (this.hasMetalBat) {
+        this.ui.showMessage("You already have a Metal Bat.", 1500);
+        return true;
+      } else {
+        this.ui.showMessage("You need 3 bats to craft a Metal Bat.", 1500);
+        return true;
+      }
+    }
+
     // If player is pointing at the keyhole, attempt to use the key
     const keyholeHit = this.keyholeMesh &&
       intersects.find((i) =>
@@ -677,12 +687,6 @@ export class LevelThree extends GameScene {
   public override update() {
     super.update();
     this.raycastUpdateMarkerFromCenter();
-    // Crafting: press F near the table to craft a Metal Bat
-    if (
-      this.inputManager.consumeKey("f") || this.inputManager.consumeKey("F")
-    ) {
-      this.attemptCraftMetalBat();
-    }
 
     if (this.inputManager.consumeInteractRequest()) {
       // First, try to handle interactions (pickup key / use keyhole).
