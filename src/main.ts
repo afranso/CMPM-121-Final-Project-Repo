@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 import { LevelOne } from "./LevelOne.ts";
 import { SaveLoadUI } from "./saveLoadUI.ts";
-import { SaveManager } from "./saveManager.ts";
+import { GameState, SaveManager } from "./saveManager.ts";
 import "./style.css";
 
 // 1. Wait for Ammo to initialize
@@ -28,7 +28,7 @@ function initApp() {
   // Scene Management
   let currentScene: GameScene = new LevelOne();
   // Helper to swap scenes
-  function switchToScene(newScene: GameScene) {
+  function switchToScene(newScene: GameScene, loadState?: GameState) {
     try {
       // Dispose old scene resources and its UI
       currentScene.getUI()?.dispose?.();
@@ -42,7 +42,7 @@ function initApp() {
     saveManager.setSaveCallback(() => currentScene.saveState());
     saveLoadUI.setLoadCallback((slotId: number) => {
       const state = saveManager.load(slotId);
-      if (state) currentScene.loadState(state);
+      if (state) loadGameState(state);
     });
     saveLoadUI.setSaveCallback((slotId: number) => saveManager.save(slotId));
 
@@ -51,12 +51,39 @@ function initApp() {
       () => saveLoadUI.show("save"),
       () => saveLoadUI.show("load"),
       () => {
-        if (confirm("Start a new game? This will reset all progress.")) {
-          saveManager.clearAllSaves();
+        if (
+          confirm(
+            "Start a new game? Current run will reset, but existing save slots stay.",
+          )
+        ) {
           switchToScene(new LevelOne());
         }
       },
     );
+
+    if (loadState) {
+      currentScene.loadState(loadState);
+    }
+  }
+
+  function loadGameState(state: GameState) {
+    const targetLevel = state.level ?? 1;
+
+    if (targetLevel === 1) {
+      switchToScene(new LevelOne(), state);
+    } else if (targetLevel === 2) {
+      import("./LevelTwo.ts").then((m) => {
+        const next = new m.LevelTwo();
+        switchToScene(next, state);
+      }).catch((err) => console.error("Failed to load LevelTwo:", err));
+    } else if (targetLevel === 3) {
+      import("./LevelThree.ts").then((m) => {
+        const next = new m.LevelThree();
+        switchToScene(next, state);
+      }).catch((err) => console.error("Failed to load LevelThree:", err));
+    } else {
+      switchToScene(new LevelOne(), state);
+    }
   }
 
   // Save System Setup
@@ -70,7 +97,7 @@ function initApp() {
   saveLoadUI.setLoadCallback((slotId: number) => {
     const state = saveManager.load(slotId);
     if (state) {
-      currentScene.loadState(state);
+      loadGameState(state);
     }
   });
 
@@ -84,8 +111,11 @@ function initApp() {
     () => saveLoadUI.show("save"),
     () => saveLoadUI.show("load"),
     () => {
-      if (confirm("Start a new game? This will reset all progress.")) {
-        saveManager.clearAllSaves();
+      if (
+        confirm(
+          "Start a new game? Current run will reset, but existing save slots stay.",
+        )
+      ) {
         switchToScene(new LevelOne());
       }
     },
@@ -104,7 +134,7 @@ function initApp() {
   if (autoSave) {
     console.log("Auto-save found, loading...");
     setTimeout(() => {
-      currentScene.loadState(autoSave);
+      loadGameState(autoSave);
     }, 500);
   }
 

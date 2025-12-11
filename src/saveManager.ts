@@ -5,6 +5,7 @@ export interface PlayerState {
 }
 
 export interface GameState {
+  level: number;
   timestamp: number;
   playerState: PlayerState;
   inventory: string[];
@@ -148,18 +149,6 @@ export class SaveManager {
     } catch (error) {
       console.error("Failed to delete save:", error);
       return false;
-    }
-  }
-
-  /**
-   * Remove all saved data, including auto-save.
-   */
-  public clearAllSaves(): void {
-    try {
-      localStorage.removeItem(SaveManager.STORAGE_KEY);
-      console.log("All save data cleared");
-    } catch (error) {
-      console.error("Failed to clear saves:", error);
     }
   }
 

@@ -812,6 +812,7 @@ export class LevelOne extends GameScene {
     const vel = this.playerBody.getLinearVelocity();
 
     return {
+      level: 1,
       timestamp: Date.now(),
       playerState: {
         position: { x: pos.x, y: pos.y, z: pos.z },

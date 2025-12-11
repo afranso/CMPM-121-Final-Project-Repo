@@ -802,6 +802,7 @@ export class LevelThree extends GameScene {
     saveInventory.push(`Bat x3`);
 
     return {
+      level: 3,
       timestamp: Date.now(),
       playerState: {
         position: { x: pos.x, y: pos.y, z: pos.z },
