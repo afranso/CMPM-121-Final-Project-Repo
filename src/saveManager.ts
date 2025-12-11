@@ -25,6 +25,7 @@ export interface GameState {
 export interface SaveSlot {
   id: number;
   timestamp: number;
+  level: number;
   gameState: GameState;
   slotName: string;
 }
@@ -68,9 +69,11 @@ export class SaveManager {
       const gameState = this.saveCallback();
       const saves = this.getAllSaves();
 
+      const normalizedLevel = gameState.level ?? 1;
       const saveSlot: SaveSlot = {
         id: slotId,
         timestamp: Date.now(),
+        level: normalizedLevel,
         gameState,
         slotName: slotName || (slotId === 0 ? "Auto Save" : `Save ${slotId}`),
       };
@@ -104,6 +107,18 @@ export class SaveManager {
         return null;
       }
 
+      // Migrate older saves missing level metadata
+      if (!saveSlot.level) {
+        saveSlot.level = saveSlot.gameState.level ?? 1;
+        saveSlot.gameState.level = saveSlot.level;
+        localStorage.setItem(SaveManager.STORAGE_KEY, JSON.stringify(saves));
+      }
+
+      // Ensure gameState carries the level for scene routing
+      if (!saveSlot.gameState.level) {
+        saveSlot.gameState.level = saveSlot.level;
+      }
+
       console.log(`Game loaded from slot ${slotId}`);
       return saveSlot.gameState;
     } catch (error) {
@@ -121,7 +136,27 @@ export class SaveManager {
       if (!data) return [];
 
       const saves = JSON.parse(data) as SaveSlot[];
-      return Array.isArray(saves) ? saves : [];
+      if (!Array.isArray(saves)) return [];
+
+      // Normalize level metadata for UI and future loads
+      let mutated = false;
+      for (const slot of saves) {
+        if (!slot) continue;
+        if (!slot.level) {
+          slot.level = slot.gameState?.level ?? 1;
+          mutated = true;
+        }
+        if (slot.gameState && !slot.gameState.level) {
+          slot.gameState.level = slot.level;
+          mutated = true;
+        }
+      }
+
+      if (mutated) {
+        localStorage.setItem(SaveManager.STORAGE_KEY, JSON.stringify(saves));
+      }
+
+      return saves;
     } catch (error) {
       console.error("Failed to load saves:", error);
       return [];
