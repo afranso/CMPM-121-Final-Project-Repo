@@ -1,15 +1,32 @@
 /// <reference types="./types/ammo-js.d.ts" />
 import * as THREE from "three";
+import { InputManager } from "./inputManager.ts";
+import { PlayerController } from "./playerController.ts";
+import { GameState } from "./saveManager.ts";
+import { UIManager } from "./UIManager.ts";
+
+export interface PhysicsObject {
+  mesh: THREE.Mesh;
+  body: Ammo.btRigidBody;
+}
 
 export abstract class GameScene {
   protected scene: THREE.Scene;
   protected camera: THREE.PerspectiveCamera;
   protected physicsWorld!: Ammo.btDiscreteDynamicsWorld;
   protected clock: THREE.Clock;
+  protected inputManager: InputManager;
+  protected playerController?: PlayerController;
 
-  // Arrays to keep track of objects to update
-  protected rigidBodies: THREE.Mesh[] = [];
+  // Dynamic bodies tracked for visual sync
+  protected physicsObjects: PhysicsObject[] = [];
+  // All bodies (static + dynamic) for cleanup
+  protected allBodies: PhysicsObject[] = [];
   protected tmpTrans: Ammo.btTransform;
+
+  protected playerBody!: Ammo.btRigidBody;
+  protected playerMesh!: THREE.Mesh;
+  protected readonly PLAYER_MASS = 50;
 
   constructor() {
     this.scene = new THREE.Scene();
@@ -19,13 +36,15 @@ export abstract class GameScene {
       0.1,
       1000,
     );
+    // Set Euler order to YXZ for FPS-style camera controls (yaw, pitch, roll)
+    this.camera.rotation.order = "YXZ";
     this.clock = new THREE.Clock();
-
-    // Initialize Ammo temporary transform helper (for optimization)
+    this.inputManager = new InputManager();
     this.tmpTrans = new Ammo.btTransform();
 
     this.initPhysics();
     this.initLights();
+    this.setupPlayer();
   }
 
   private initPhysics() {
@@ -51,34 +70,32 @@ export abstract class GameScene {
     this.scene.add(ambientLight, dirLight);
   }
 
-  // Helper to create a physics object
-  protected createCube(
-    size: number,
+  protected abstract setupPlayer(): void;
+
+  // Unified body creation (DRY replacement for createCube/createBox)
+  protected createBody(
+    size: { x: number; y: number; z: number },
     mass: number,
     pos: THREE.Vector3,
-    color: number,
+    color: number | THREE.Color,
   ): THREE.Mesh {
-    // 1. Three.js Visuals
-    const geometry = new THREE.BoxGeometry(size, size, size);
+    const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
     const material = new THREE.MeshPhongMaterial({ color });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(pos);
     this.scene.add(mesh);
 
-    // 2. Ammo.js Physics
+    // Physics construction
     const transform = new Ammo.btTransform();
     transform.setIdentity();
     transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
 
     const motionState = new Ammo.btDefaultMotionState(transform);
     const colShape = new Ammo.btBoxShape(
-      new Ammo.btVector3(size * 0.5, size * 0.5, size * 0.5),
+      new Ammo.btVector3(size.x * 0.5, size.y * 0.5, size.z * 0.5),
     );
     const localInertia = new Ammo.btVector3(0, 0, 0);
-
-    if (mass > 0) {
-      colShape.calculateLocalInertia(mass, localInertia);
-    }
+    if (mass > 0) colShape.calculateLocalInertia(mass, localInertia);
 
     const rbInfo = new Ammo.btRigidBodyConstructionInfo(
       mass,
@@ -87,19 +104,30 @@ export abstract class GameScene {
       localInertia,
     );
     const body = new Ammo.btRigidBody(rbInfo);
-
     this.physicsWorld.addRigidBody(body);
 
-    // 3. Link them
-    if (mass > 0) {
-      mesh.userData.physicsBody = body;
-      this.rigidBodies.push(mesh);
-    }
+    mesh.userData.physicsBody = body;
+
+    const physObj: PhysicsObject = { mesh, body };
+    // Track all for cleanup
+    this.allBodies.push(physObj);
+    // Track dynamic for update sync
+    if (mass > 0) this.physicsObjects.push(physObj);
+
+    // NOTE: Explicit Ammo destruction APIs not available in current typings; relying on GC/WASM lifecycle.
 
     return mesh;
   }
 
-  // Helper to create a box with custom dimensions
+  // Backwards compatibility helpers (retain old names if referenced elsewhere)
+  protected createCube(
+    size: number,
+    mass: number,
+    pos: THREE.Vector3,
+    color: number,
+  ): THREE.Mesh {
+    return this.createBody({ x: size, y: size, z: size }, mass, pos, color);
+  }
   protected createBox(
     width: number,
     height: number,
@@ -108,70 +136,45 @@ export abstract class GameScene {
     pos: THREE.Vector3,
     color: number,
   ): THREE.Mesh {
-    // 1. Three.js Visuals
-    const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshPhongMaterial({ color });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(pos);
-    this.scene.add(mesh);
+    return this.createBody({ x: width, y: height, z: depth }, mass, pos, color);
+  }
 
-    // 2. Ammo.js Physics
-    const transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-
-    const motionState = new Ammo.btDefaultMotionState(transform);
-    const colShape = new Ammo.btBoxShape(
-      new Ammo.btVector3(width * 0.5, height * 0.5, depth * 0.5),
-    );
-    const localInertia = new Ammo.btVector3(0, 0, 0);
-
-    if (mass > 0) {
-      colShape.calculateLocalInertia(mass, localInertia);
+  protected initPlayerController() {
+    if (this.playerBody) {
+      this.playerController = new PlayerController(
+        this.camera,
+        this.playerBody,
+        this.inputManager,
+      );
     }
-
-    const rbInfo = new Ammo.btRigidBodyConstructionInfo(
-      mass,
-      motionState,
-      colShape,
-      localInertia,
-    );
-    const body = new Ammo.btRigidBody(rbInfo);
-
-    this.physicsWorld.addRigidBody(body);
-
-    // 3. Link them
-    if (mass > 0) {
-      mesh.userData.physicsBody = body;
-      this.rigidBodies.push(mesh);
-    }
-
-    return mesh;
   }
 
   public update() {
     const deltaTime = this.clock.getDelta();
+    if (this.playerController) this.playerController.update();
 
-    // Step Physics World with fixed timestep to prevent tunneling
-    // Clamp deltaTime to prevent spiral of death and use fixed substeps
-    const clampedDelta = Math.min(deltaTime, 0.1);
-    this.physicsWorld.stepSimulation(clampedDelta, 10, 1 / 60);
+    this.physicsWorld.stepSimulation(Math.min(deltaTime, 0.1), 10, 1 / 60);
 
-    // Sync Visuals to Physics
-    for (let i = 0; i < this.rigidBodies.length; i++) {
-      const objThree = this.rigidBodies[i];
-      const objPhys = objThree.userData.physicsBody;
-      const ms = objPhys.getMotionState();
-
+    for (const obj of this.physicsObjects) {
+      const ms = obj.body.getMotionState();
       if (ms) {
         ms.getWorldTransform(this.tmpTrans);
         const p = this.tmpTrans.getOrigin();
         const q = this.tmpTrans.getRotation();
-
-        objThree.position.set(p.x(), p.y(), p.z());
-        objThree.quaternion.set(q.x(), q.y(), q.z(), q.w());
+        obj.mesh.position.set(p.x(), p.y(), p.z());
+        obj.mesh.quaternion.set(q.x(), q.y(), q.z(), q.w());
       }
     }
+  }
+
+  public dispose() {
+    this.inputManager.dispose();
+    // Physics cleanup: remove and destroy all Ammo objects to prevent leaks
+    for (const obj of this.allBodies) {
+      this.physicsWorld.removeRigidBody(obj.body);
+    }
+    this.physicsObjects.length = 0;
+    this.allBodies.length = 0;
   }
 
   public getScene(): THREE.Scene {
@@ -180,4 +183,12 @@ export abstract class GameScene {
   public getCamera(): THREE.PerspectiveCamera {
     return this.camera;
   }
+
+  // UI Manager access - to be implemented by subclasses
+  public abstract getUI(): UIManager;
+
+  // Save/Load methods to be implemented by subclasses
+  public abstract saveState(): GameState;
+  public abstract loadState(state: GameState): void;
+  public abstract resetToInitialState(): void;
 }

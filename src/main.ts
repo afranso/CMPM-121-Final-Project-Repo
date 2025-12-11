@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { GameScene } from "./GameScene.ts";
 import { LevelOne } from "./LevelOne.ts";
+import { SaveLoadUI } from "./saveLoadUI.ts";
+import { SaveManager } from "./saveManager.ts";
+import "./style.css";
 
 // 1. Wait for Ammo to initialize
 import("ammo.js").then((AmmoModule: unknown) => {
@@ -23,7 +26,102 @@ function initApp() {
   document.body.appendChild(renderer.domElement);
 
   // Scene Management
-  const currentScene: GameScene = new LevelOne();
+  let currentScene: GameScene = new LevelOne();
+  // Helper to swap scenes
+  function switchToScene(newScene: GameScene) {
+    try {
+      // Dispose old scene resources and its UI
+      currentScene.getUI()?.dispose?.();
+    } catch (_e) {
+      // ignore if UI already removed
+    }
+    currentScene.dispose();
+    currentScene = newScene;
+
+    // Rewire save/load callbacks to the new scene
+    saveManager.setSaveCallback(() => currentScene.saveState());
+    saveLoadUI.setLoadCallback((slotId: number) => {
+      const state = saveManager.load(slotId);
+      if (state) currentScene.loadState(state);
+    });
+    saveLoadUI.setSaveCallback((slotId: number) => saveManager.save(slotId));
+
+    // Recreate the per-scene save/load buttons
+    currentScene.getUI().createSaveLoadButtons(
+      () => saveLoadUI.show("save"),
+      () => saveLoadUI.show("load"),
+      () => {
+        if (confirm("Start a new game? This will reset all progress.")) {
+          currentScene.resetToInitialState();
+        }
+      },
+    );
+  }
+
+  // Save System Setup
+  const saveManager = new SaveManager();
+  const saveLoadUI = new SaveLoadUI(saveManager);
+
+  // Set up save callback to capture current game state
+  saveManager.setSaveCallback(() => currentScene.saveState());
+
+  // Set up load callback
+  saveLoadUI.setLoadCallback((slotId: number) => {
+    const state = saveManager.load(slotId);
+    if (state) {
+      currentScene.loadState(state);
+    }
+  });
+
+  // Set up save callback for UI
+  saveLoadUI.setSaveCallback((slotId: number) => {
+    saveManager.save(slotId);
+  });
+
+  // Create save/load buttons using UIManager
+  currentScene.getUI().createSaveLoadButtons(
+    () => saveLoadUI.show("save"),
+    () => saveLoadUI.show("load"),
+    () => {
+      if (confirm("Start a new game? This will reset all progress.")) {
+        currentScene.resetToInitialState();
+      }
+    },
+  );
+
+  // Keyboard handlers for save/load menus - capture at document level
+  document.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Escape" || e.code === "Escape") {
+      console.log("ESC pressed - Closing save/load menu");
+      saveLoadUI.hide();
+    }
+  }, true); // Use capture phase to get events before other handlers
+
+  // Try to load auto-save on startup
+  const autoSave = saveManager.load(0);
+  if (autoSave) {
+    console.log("Auto-save found, loading...");
+    setTimeout(() => {
+      currentScene.loadState(autoSave);
+    }, 500);
+  }
+
+  // Listen for level completion events and switch to LevelTwo
+  globalThis.addEventListener("levelComplete", (e: Event) => {
+    const ce = e as CustomEvent;
+    console.log("levelComplete event received", ce.detail);
+    if (ce.detail?.level === 1) {
+      import("./LevelTwo.ts").then((m) => {
+        const next = new m.LevelTwo();
+        switchToScene(next);
+      }).catch((err) => console.error("Failed to load LevelTwo:", err));
+    } else if (ce.detail?.level === 3) {
+      import("./LevelThree.ts").then((m) => {
+        const next = new m.LevelThree();
+        switchToScene(next);
+      }).catch((err) => console.error("Failed to load LevelThree:", err));
+    }
+  });
 
   // Resize Handler
   globalThis.addEventListener("resize", () => {

@@ -9,6 +9,9 @@ interface AmmoVector3 {
   x(): number;
   y(): number;
   z(): number;
+  setX(x: number): void; // <-- ADDED
+  setY(y: number): void; // <-- ADDED
+  setZ(z: number): void; // <-- ADDED
 }
 
 interface AmmoQuaternion {
@@ -34,6 +37,7 @@ interface AmmoSequentialImpulseConstraintSolver {
 interface AmmoDiscreteDynamicsWorld {
   setGravity(gravity: AmmoVector3): void;
   addRigidBody(body: AmmoRigidBody): void;
+  removeRigidBody(body: AmmoRigidBody): void; // Add this method to the type definition
   stepSimulation(
     deltaTime: number,
     maxSubSteps?: number,
@@ -55,6 +59,13 @@ interface AmmoRigidBodyConstructionInfo {
 
 interface AmmoRigidBody {
   getMotionState(): AmmoDefaultMotionState | null;
+  setAngularFactor(factor: AmmoVector3): void;
+  setLinearVelocity(velocity: AmmoVector3): void;
+  getLinearVelocity(): AmmoVector3;
+  getAngularVelocity(): AmmoVector3;
+  applyCentralImpulse(impulse: AmmoVector3): void;
+  setWorldTransform(transform: AmmoTransform): void; // <-- ADDED
+  setAngularVelocity(velocity: AmmoVector3): void; // <-- ADDED
 }
 
 interface AmmoNamespace {
@@ -86,7 +97,7 @@ interface AmmoNamespace {
     ): AmmoDiscreteDynamicsWorld;
   };
   btDefaultMotionState: {
-    new (transform: AmmoTransform): AmmoDefaultMotionState;
+    new (transform: AmmoTransform): AmmoDefaultMotionState; // <-- FIXED RETURN TYPE
   };
   btBoxShape: {
     new (halfExtents: AmmoVector3): AmmoBoxShape;
